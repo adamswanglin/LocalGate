@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="squircle">
+      <rect width="1024" height="1024" rx="228"/>
+    </clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="50%" cy="0%" r="85%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#squircle)">
+    <!-- 渐变底 -->
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <!-- 顶部柔和高光 -->
+    <rect width="1024" height="640" fill="url(#sheen)"/>
+  </g>
+
+  <!-- 中继弧线：客户端 → 网关 → 上游 -->
+  <path d="M706 266 C 620 112, 432 112, 320 706" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+  <!-- 中继圆点（右上 / 左下） -->
+  <circle cx="754" cy="284" r="44" fill="#ffffff"/>
+  <circle cx="270" cy="740" r="44" fill="#ffffff"/>
+  <!-- 居中闪电 -->
+  <path d="M533 277 L323 559 L512 559 L491 747 L701 465 L512 465 Z" fill="url(#bolt)" stroke="#ffffff" stroke-width="26" stroke-linejoin="round"/>
+</svg>

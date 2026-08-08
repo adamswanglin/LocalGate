@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+web/dist/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data (.run/ 下的数据库和日志)
+.run/*.db
+.run/*.db-*
+.run/*.log
+
+# Electron build output
+release/
+
+# Drizzle Kit generated migrations
+drizzle/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE & editor
+.vscode/
+.idea/
+*.sublime-*
+
+# Claude local settings (含本机绝对路径)
+.claude/
+
+# TypeScript build cache
+*.tsbuildinfo

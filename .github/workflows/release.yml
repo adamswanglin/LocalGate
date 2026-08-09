@@ -10,13 +10,14 @@ permissions:
   contents: write
 
 jobs:
-  # ── macOS: arm64 + x64 ──────────────────────────────────
+  # ── macOS: arm64 + x64 in a single build ─────────────────
+  # Building both arches in one electron-builder run (per package.json mac.target)
+  # instead of a parallel matrix avoids the publish race where two jobs fought over
+  # the same release assets (404 on asset DELETE). It also yields one combined
+  # latest-mac.yml listing both arches, which auto-update needs.
   build-mac:
-    name: macOS (${{ matrix.arch }})
+    name: macOS (arm64 + x64)
     runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [arm64, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -35,19 +36,17 @@ jobs:
 
       - run: pnpm run build
 
-      - run: pnpm exec electron-builder --mac --${{ matrix.arch }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Build only — the dedicated `release` job does the publishing.
+      - run: pnpm exec electron-builder --mac --publish never
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: macos
           path: |
-            release/LocalGate-*-arm64.dmg
-            release/LocalGate-*-x64.dmg
-            release/LocalGate-*-arm64-mac.zip
-            release/LocalGate-*-x64-mac.zip
-          if_no_files_found: warn
+            release/LocalGate-*.dmg
+            release/LocalGate-*-mac.zip
+            release/latest-mac.yml
+          if-no-files-found: warn
 
   # ── Windows: x64 ────────────────────────────────────────
   build-win:
@@ -71,15 +70,15 @@ jobs:
 
       - run: pnpm run build
 
-      - run: pnpm exec electron-builder --win --x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: pnpm exec electron-builder --win --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x64
-          path: release/*setup.exe
-          if_no_files_found: warn
+          path: |
+            release/*setup.exe
+            release/latest.yml
+          if-no-files-found: warn
 
   # ── Linux: x64 ──────────────────────────────────────────
   build-linux:
@@ -103,15 +102,15 @@ jobs:
 
       - run: pnpm run build
 
-      - run: pnpm exec electron-builder --linux --x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: pnpm exec electron-builder --linux --x64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-x64
-          path: release/*.AppImage
-          if_no_files_found: warn
+          path: |
+            release/*.AppImage
+            release/latest-linux.yml
+          if-no-files-found: warn
 
   # ── Release: 合并所有产物发布到 GitHub Release ──────────
   release:

@@ -11,10 +11,15 @@ permissions:
 
 jobs:
   # ── macOS: arm64 与 x64 各自单独构建 ──────────────────────
-  # 关键经验：electron-builder 的 npmRebuild 在本环境会编出错误架构（实测
-  # arm64 目标产出 x86_64 .node）。故关闭 npmRebuild，改用显式
-  # `electron-rebuild --force --arch=<arch>` 自己重编 better-sqlite3，
-  # electron-builder 原样打包，架构完全可控。构建后再用 file 校验兜底。
+  # 关键经验（2026-08 本机复现确认）：
+  #   1) build.mac.target 里写死 arch:[arm64,x64] 会让 CLI 的 --arch 失效，
+  #      electron-builder 一次打出双架构（release/mac + release/mac-arm64）。
+  #      随后 `find ... | head -1` 按字母序抓到 release/mac（x64）→ 误报
+  #      「arm64 产出 x86_64」。根因是双架构 + 校验抓错文件，并非真的架构反转。
+  #   2) 故 package.json 的 mac.target 只写 ["dmg","zip"]（不锁 arch），让 CLI
+  #      的 --arch 唯一决定架构，每个 job 只产单架构。npmRebuild:true 负责重编
+  #      better-sqlite3 并裁剪 devDependencies（实测 arm64 .node 正确、zip≈101M）。
+  #   3) 校验遍历 release 下所有 .node 逐一核对，并加 zip 体积护栏（>250M 失败）。
   # arm64 走 macos-14（原生、快）；x64 走 macos-13（原生 Intel，慢但稳）。
   build-mac:
     name: macOS (${{ matrix.arch }})
@@ -50,27 +55,38 @@ jobs:
           node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
           echo "package version -> ${VERSION}"
 
-      # 显式按目标架构强制重编 better-sqlite3（npmRebuild:false，electron-builder 不会再动它）
-      - run: |
-          echo "node arch: $(node -p 'process.arch')"
-          pnpm exec electron-rebuild --force --arch=${{ matrix.arch }} -w better-sqlite3
-
       - run: pnpm run build
 
-      # 仅构建；发布交给独立的 release job
+      # 仅构建；npmRebuild:true 自动按 --arch 重编 better-sqlite3 并裁剪依赖。
+      # 发布交给独立的 release job。
       - run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
 
-      # 校验打包进去的原生模块架构与目标一致，避免再次出现 arm64 包塞进 x86_64 .node
+      # 校验：遍历 release 下所有 better_sqlite3.node，逐一核对架构；
+      # 并对 zip 加体积护栏，防止 devDeps 漏入导致产物膨胀（曾出现 1.1GB）。
       - name: Verify native module arch (${{ matrix.arch }})
+        shell: bash
         run: |
-          NODE=$(find release -path '*better_sqlite3.node' | head -1)
-          echo "native module: $NODE"
-          file "$NODE"
+          set -e
           case "${{ matrix.arch }}" in
-            arm64) file "$NODE" | grep -q arm64 ;;
-            x64)   file "$NODE" | grep -q x86_64 ;;
-          esac || { echo "::error::native module arch mismatch for ${{ matrix.arch }}"; exit 1; }
-          echo "arch ok (${{ matrix.arch }})"
+            arm64) NEED=arm64 ;;
+            x64)   NEED=x86_64 ;;
+          esac
+          COUNT=0
+          for NODE in $(find release -path '*better_sqlite3.node'); do
+            COUNT=$((COUNT+1))
+            echo "native module #$COUNT: $NODE"
+            file "$NODE"
+            file "$NODE" | grep -q "$NEED" || { echo "::error::arch mismatch: need $NEED"; exit 1; }
+          done
+          [ "$COUNT" -ge 1 ] || { echo "::error::no .node found in release"; exit 1; }
+          # 体积护栏：mac zip 正常 ~101M，超过 250M 视为膨胀
+          ZIP=$(find release -name 'LocalGate-*-mac.zip' | head -1)
+          if [ -n "$ZIP" ]; then
+            SZ=$(wc -c < "$ZIP" | tr -d ' ')
+            echo "zip size: $SZ bytes ($ZIP)"
+            [ "$SZ" -lt 262144000 ] || { echo "::error::zip bloated (>250MB), likely devDeps leaked"; exit 1; }
+          fi
+          echo "arch + size ok (${{ matrix.arch }})"
 
       # 每个架构各自生成一份 latest-mac.yml，release job 里合并成含双架构的单份
       - name: Rename arch-specific latest-mac.yml

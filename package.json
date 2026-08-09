@@ -68,7 +68,7 @@
     "asarUnpack": [
       "**/*.node"
     ],
-    "npmRebuild": true,
+    "npmRebuild": false,
     "mac": {
       "category": "public.app-category.developer-tools",
       "identity": null,

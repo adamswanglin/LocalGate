@@ -10,14 +10,12 @@ permissions:
   contents: write
 
 jobs:
-  # ── macOS: arm64 与 x64 各自在原生架构 runner 上构建 ──────────
-  # 必须用原生 runner，不能在 arm64 上交叉编 x64：better-sqlite3 等
-  # 原生模块在 Apple Silicon 上交叉编译会得到被反转/污染的架构（实测 --arm64
-  # 产出 x86_64、--x64 产出 arm64），arm64 机器 dlopen 报
-  # "incompatible architecture" 而秒退。
+  # ── macOS: arm64 与 x64 各自单独构建 ──────────────────────
+  # 关键经验：electron-builder 的 npmRebuild 在本环境会编出错误架构（实测
+  # arm64 目标产出 x86_64 .node）。故关闭 npmRebuild，改用显式
+  # `electron-rebuild --force --arch=<arch>` 自己重编 better-sqlite3，
+  # electron-builder 原样打包，架构完全可控。构建后再用 file 校验兜底。
   # arm64 走 macos-14（原生、快）；x64 走 macos-13（原生 Intel，慢但稳）。
-  # 不再手动 electron-rebuild——它会把宿主机架构 .node 烤进 node_modules
-  # 干扰 electron-builder 的 npmRebuild，由 npmRebuild 按目标架构重编即可。
   build-mac:
     name: macOS (${{ matrix.arch }})
     strategy:
@@ -51,6 +49,11 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
           echo "package version -> ${VERSION}"
+
+      # 显式按目标架构强制重编 better-sqlite3（npmRebuild:false，electron-builder 不会再动它）
+      - run: |
+          echo "node arch: $(node -p 'process.arch')"
+          pnpm exec electron-rebuild --force --arch=${{ matrix.arch }} -w better-sqlite3
 
       - run: pnpm run build
 
@@ -109,7 +112,7 @@ jobs:
           node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
           echo "package version -> ${VERSION}"
 
-      - run: pnpm exec electron-rebuild -w better-sqlite3
+      - run: pnpm exec electron-rebuild --force --arch=x64 -w better-sqlite3
 
       - run: pnpm run build
 
@@ -149,7 +152,7 @@ jobs:
           node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
           echo "package version -> ${VERSION}"
 
-      - run: pnpm exec electron-rebuild -w better-sqlite3
+      - run: pnpm exec electron-rebuild --force --arch=x64 -w better-sqlite3
 
       - run: pnpm run build
 

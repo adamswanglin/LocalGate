@@ -10,10 +10,13 @@ permissions:
   contents: write
 
 jobs:
-  # ── macOS: arm64 与 x64 各自在原生架构 runner 上构建 ──────────
-  # 不能在一个 arm64 job 里同时打双架构：better-sqlite3 等原生模块交叉编译
-  # 会把 x86_64 的 .node 污染进 arm64 包，导致 arm64 机器上 dlopen 报
-  # "incompatible architecture" 而秒退。拆成两个原生 job 即可避免。
+  # ── macOS: arm64 与 x64 各自单独构建 ──────────────────────
+  # 关键：分两次独立 `--arm64` / `--x64` 构建，绝不在一次 --mac 里同打双架构——
+  # 否则 better-sqlite3 等原生模块交叉编译会把 x86_64 的 .node 污染进 arm64 包，
+  # arm64 机器上 dlopen 报 "incompatible architecture" 而秒退。
+  # 两次独立构建都跑在 macos-14(arm64) 上，x64 由 electron-builder 交叉编译，
+  # 并在构建后用 file 校验 .node 架构，不对则直接 fail，不发坏包。
+  # （macos-13 Intel runner 排队极慢，不必等。）
   build-mac:
     name: macOS (${{ matrix.arch }})
     strategy:
@@ -22,7 +25,7 @@ jobs:
         include:
           - os: macos-14
             arch: arm64
-          - os: macos-13
+          - os: macos-14
             arch: x64
     runs-on: ${{ matrix.os }}
     steps:
@@ -55,6 +58,18 @@ jobs:
 
       # 仅构建；发布交给独立的 release job
       - run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
+
+      # 校验打包进去的原生模块架构与目标一致，避免再次出现 arm64 包塞进 x86_64 .node
+      - name: Verify native module arch (${{ matrix.arch }})
+        run: |
+          NODE=$(find release -path '*better_sqlite3.node' | head -1)
+          echo "native module: $NODE"
+          file "$NODE"
+          case "${{ matrix.arch }}" in
+            arm64) file "$NODE" | grep -q arm64 ;;
+            x64)   file "$NODE" | grep -q x86_64 ;;
+          esac || { echo "::error::native module arch mismatch for ${{ matrix.arch }}"; exit 1; }
+          echo "arch ok (${{ matrix.arch }})"
 
       # 每个架构各自生成一份 latest-mac.yml，release job 里合并成含双架构的单份
       - name: Rename arch-specific latest-mac.yml

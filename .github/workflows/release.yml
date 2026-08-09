@@ -10,14 +10,21 @@ permissions:
   contents: write
 
 jobs:
-  # ── macOS: arm64 + x64 in a single build ─────────────────
-  # Building both arches in one electron-builder run (per package.json mac.target)
-  # instead of a parallel matrix avoids the publish race where two jobs fought over
-  # the same release assets (404 on asset DELETE). It also yields one combined
-  # latest-mac.yml listing both arches, which auto-update needs.
+  # ── macOS: arm64 与 x64 各自在原生架构 runner 上构建 ──────────
+  # 不能在一个 arm64 job 里同时打双架构：better-sqlite3 等原生模块交叉编译
+  # 会把 x86_64 的 .node 污染进 arm64 包，导致 arm64 机器上 dlopen 报
+  # "incompatible architecture" 而秒退。拆成两个原生 job 即可避免。
   build-mac:
-    name: macOS (arm64 + x64)
-    runs-on: macos-latest
+    name: macOS (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+          - os: macos-13
+            arch: x64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -32,20 +39,35 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # 用 tag 回写 package.json 版本号，保证产物名与 tag 一致
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
+          echo "package version -> ${VERSION}"
+
+      # 原生架构重编 better-sqlite3（与 Electron ABI 匹配）
       - run: pnpm exec electron-rebuild -w better-sqlite3
 
       - run: pnpm run build
 
-      # Build only — the dedicated `release` job does the publishing.
-      - run: pnpm exec electron-builder --mac --publish never
+      # 仅构建；发布交给独立的 release job
+      - run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
+
+      # 每个架构各自生成一份 latest-mac.yml，release job 里合并成含双架构的单份
+      - name: Rename arch-specific latest-mac.yml
+        run: mv release/latest-mac.yml release/latest-mac-${{ matrix.arch }}.yml
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos
+          name: macos-${{ matrix.arch }}
           path: |
             release/LocalGate-*.dmg
             release/LocalGate-*-mac.zip
-            release/latest-mac.yml
+            release/*.blockmap
+            release/latest-mac-${{ matrix.arch }}.yml
           if-no-files-found: warn
 
   # ── Windows: x64 ────────────────────────────────────────
@@ -65,6 +87,14 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
+          echo "package version -> ${VERSION}"
 
       - run: pnpm exec electron-rebuild -w better-sqlite3
 
@@ -98,6 +128,14 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
+          echo "package version -> ${VERSION}"
+
       - run: pnpm exec electron-rebuild -w better-sqlite3
 
       - run: pnpm run build
@@ -126,6 +164,54 @@ jobs:
 
       - name: List all artifacts
         run: find artifacts -type f
+
+      # 合并 arm64 + x64 两份 latest-mac.yml → 单份含双架构的 latest-mac.yml
+      # electron-updater 据此为不同架构的 Mac 选对应更新包
+      - name: Merge latest-mac.yml
+        shell: bash
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          function load(p) {
+            if (!fs.existsSync(p)) return null;
+            const lines = fs.readFileSync(p, 'utf8').split('\n');
+            const o = { files: [] }; let cur = null, inF = false;
+            for (const l of lines) {
+              if (/^files:\s*$/.test(l)) { inF = true; continue; }
+              if (inF) {
+                const u = l.match(/^\s+-\s+url:\s+(.+)$/);
+                if (u) { cur = { url: u[1].trim() }; o.files.push(cur); continue; }
+                const s = l.match(/^\s+sha512:\s+(.+)$/);
+                if (s && cur) { cur.sha512 = s[1].trim(); continue; }
+                const z = l.match(/^\s+size:\s+(.+)$/);
+                if (z && cur) { cur.size = Number(z[1].trim()); continue; }
+                inF = false; // 当前行属于顶层字段，向下走
+              }
+              const k = l.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
+              if (k) o[k[1]] = k[2].trim();
+            }
+            return o;
+          }
+          const a = load('artifacts/latest-mac-arm64.yml');
+          const b = load('artifacts/latest-mac-x64.yml');
+          if (!a || !b) { console.log('missing arch yml, skip merge'); process.exit(0); }
+          const m = {
+            version: a.version,
+            files: [...a.files, ...b.files],
+            path: a.path,
+            sha512: a.sha512,
+            releaseDate: a.releaseDate,
+          };
+          let out = `version: ${m.version}\nfiles:\n`;
+          for (const f of m.files) {
+            out += `  - url: ${f.url}\n    sha512: ${f.sha512}\n    size: ${f.size}\n`;
+          }
+          out += `path: ${m.path}\nsha512: ${m.sha512}\nreleaseDate: ${m.releaseDate}\n`;
+          fs.writeFileSync('artifacts/latest-mac.yml', out);
+          fs.existsSync('artifacts/latest-mac-arm64.yml') && fs.unlinkSync('artifacts/latest-mac-arm64.yml');
+          fs.existsSync('artifacts/latest-mac-x64.yml') && fs.unlinkSync('artifacts/latest-mac-x64.yml');
+          console.log(out);
+          EOF
 
       - uses: softprops/action-gh-release@v2
         with:

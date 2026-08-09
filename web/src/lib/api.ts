@@ -45,7 +45,7 @@ export interface Source {
   models: SourceModel[];
 }
 
-export interface ChannelBinding {
+export interface ModelEntryBinding {
   id: number;
   channelId: number;
   sourceModelId: number;
@@ -57,8 +57,9 @@ export interface ChannelBinding {
   outputPrice: number | null;
 }
 
-export interface Channel {
+export interface ModelEntry {
   id: number;
+  name: string;
   protocol: string;
   sourceId: number;
   upstreamModel: string;
@@ -66,7 +67,7 @@ export interface Channel {
   enabled: boolean;
   createdAt: string;
   activeBindingId: number | null;
-  bindings: ChannelBinding[];
+  bindings: ModelEntryBinding[];
 }
 
 export interface Token {
@@ -160,12 +161,19 @@ export const api = {
     test: (id: number, model: string, protocol?: string) =>
       req<{ protocol: string; ok: boolean; status: number | null; sample?: string; error?: string }>(`/api/sources/${id}/test`, { method: 'POST', body: JSON.stringify({ model, protocol }) }),
   },
-  channels: {
-    list: () => req<Channel[]>('/api/channels'),
-    create: (b: any) => req<Channel>('/api/channels', { method: 'POST', body: JSON.stringify(b) }),
-    update: (id: number, b: any) => req<Channel>(`/api/channels/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
+  modelEntries: {
+    list: () => req<ModelEntry[]>('/api/channels'),
+    create: (b: any) => req<ModelEntry>('/api/channels', { method: 'POST', body: JSON.stringify(b) }),
+    update: (id: number, b: any) => req<ModelEntry>(`/api/channels/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
     remove: (id: number) => req(`/api/channels/${id}`, { method: 'DELETE' }),
-    setActive: (id: number, bindingId: number) => req<Channel>(`/api/channels/${id}/active`, { method: 'PATCH', body: JSON.stringify({ bindingId }) }),
+    setActive: (id: number, bindingId: number) => req<ModelEntry>(`/api/channels/${id}/active`, { method: 'PATCH', body: JSON.stringify({ bindingId }) }),
+  },
+  modelGroups: {
+    // 整组（一个 exposedModel 下多协议）原子保存；返回该组的全部 channel。
+    // PUT/DELETE 用 body.key 传旧 exposedModel，兼容空串/特殊字符
+    create: (b: any) => req<ModelEntry[]>('/api/model-groups', { method: 'POST', body: JSON.stringify(b) }),
+    update: (key: string, b: any) => req<ModelEntry[]>('/api/model-groups', { method: 'PUT', body: JSON.stringify({ key, ...b }) }),
+    remove: (key: string) => req('/api/model-groups', { method: 'DELETE', body: JSON.stringify({ key }) }),
   },
   tokens: {
     list: () => req<Token[]>('/api/tokens'),

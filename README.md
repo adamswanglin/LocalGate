@@ -1,140 +1,146 @@
+<p align="center">
+  <img src="build/icon.svg" width="128" height="128" alt="LocalGate">
+</p>
+
 # LocalGate
 
-**AI API Proxy Gateway — Unified multi-provider AI interface proxy with real-time logging, cost tracking, and usage analytics.**
+**AI API Proxy Gateway — 多模型统一代理，实时日志、费用追踪与用量分析。**
 
 [中文文档](README_zh.md)
 
+## Why LocalGate?
+
+When working with multiple AI providers (OpenAI, Anthropic, Azure, Ollama, etc.), you face common challenges:
+
+- Each provider has different API formats and authentication methods
+- Switching between providers requires changing code
+- No visibility into token usage or costs
+- No way to debug or inspect API calls
+
+LocalGate solves all of this with a single local gateway. Point your app at LocalGate once, then manage providers, models, and routing through a visual dashboard — no code changes needed.
+
 ## Features
 
-- **Multi-Protocol Proxy** — Transparently proxy OpenAI Chat (`/v1/chat/completions`), OpenAI Responses (`/v1/responses`), and Anthropic Messages (`/v1/messages`) through a single gateway
-- **Upstream Source Management** — Configure multiple AI providers with independent API keys, protocol endpoints, and model lists
-- **Channel Abstraction** — Expose virtual model names to clients, bind multiple upstream sources, and switch active upstreams with one click
-- **Real-time Call Logging** — Capture full request/response bodies (including streaming SSE), with token counts, latency, and error details
-- **Cost Tracking** — Per-model pricing (input / cached input / output), automatic cost calculation on every call
-- **Usage Analytics** — Token trends, stacked charts by source/channel/model, daily/monthly aggregation, and cost breakdowns
-- **Access Token Auth** — Optional Bearer token authentication; open access when no tokens are configured
-- **Log Management** — Star important logs, tag entries, auto-retention with 10K cap (starred logs are preserved)
-- **Desktop App** — Cross-platform Electron app (macOS / Windows / Linux) with native title bar integration
-- **Web Dashboard** — Responsive React UI with bilingual support (中文 / English)
-- **Zero External Dependencies** — SQLite storage, single-process deployment, no Redis or external database required
-
-## Architecture
-
-```
-┌─────────────┐       ┌──────────────────────────────────────────────┐       ┌─────────────────┐
-│   Client    │──────▶│              LocalGate Gateway                │──────▶│  Upstream AI    │
-│  (any SDK)  │       │                                              │       │  Providers      │
-└─────────────┘       │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │       │                 │
-                      │  │ Channels │─▶│ Bindings │─▶│  Sources   │  │       │  • OpenAI       │
-                      │  └──────────┘  └──────────┘  └───────────┘  │       │  • Anthropic    │
-                      │                                              │       │  • Azure OpenAI │
-                      │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │       │  • Ollama       │
-                      │  │ Call Logs│  │  Tokens  │  │  Stats    │  │       │  • Any OpenAI-  │
-                      │  └──────────┘  └──────────┘  └───────────┘  │       │    compatible   │
-                      └──────────────────────────────────────────────┘       └─────────────────┘
-```
-
-**Core Concepts:**
-
-| Concept | Description |
-|---------|-------------|
-| **Source** | An upstream AI provider (e.g., OpenAI, Anthropic) with API key, protocol endpoints, and model definitions |
-| **Channel** | A virtual API entry point identified by exposed model name + protocol type |
-| **Binding** | Links a channel to a specific upstream source model; channels can have multiple bindings and switch between them |
-| **Protocol** | API format: `openai_chat`, `openai_response`, or `anthropic` |
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Server | [Hono](https://hono.dev) + Node.js |
-| Database | SQLite via [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) + [Drizzle ORM](https://orm.drizzle.team) |
-| Frontend | React 18 + [Tailwind CSS 4](https://tailwindcss.com) + [React Router](https://reactrouter.com) |
-| Build | [Vite](https://vite.dev) (frontend) + TypeScript (server) |
-| Desktop | [Electron](https://www.electronjs.org) + electron-builder |
-| Charts | Custom SVG stacked bar charts |
+- **Unified API** — One endpoint format for OpenAI, Anthropic, and any OpenAI-compatible service
+- **Model Aliasing** — Expose virtual model names (e.g., `gpt-4o`) and route them to any upstream provider
+- **One-Click Switching** — Bind multiple upstreams to an entry, switch active upstream instantly
+- **Full Request Logging** — Inspect every request and response, including streaming SSE content
+- **Cost Tracking** — Set per-model pricing and see costs accumulate in real-time
+- **Usage Analytics** — Token trends, breakdowns by source/entry/model, daily/monthly aggregation
+- **Access Control** — Optional token authentication; open access when no tokens configured
+- **Desktop App** — Native app for macOS, Windows, and Linux
 
 ## Quick Start
-
-### Prerequisites
-
-- Node.js >= 20
-- pnpm >= 9
 
 ### Run as Server
 
 ```bash
-# Clone the repository
 git clone https://github.com/your-username/localgate.git
 cd localgate
-
-# Install dependencies
 pnpm install
-
-# Start with one-click script (foreground)
-./start.sh
-
-# Or start in background
-./start.sh -d
+./start.sh          # foreground (Ctrl+C to stop)
+./start.sh -d       # or background mode
 ```
 
-The server starts on `http://localhost:8787` by default. Open the URL in your browser to access the Web Dashboard.
+Open `http://localhost:8787` in your browser to access the dashboard.
 
 ### Run as Desktop App
 
+Download the latest release from [GitHub Releases](../../releases):
+
+- **macOS**: `.dmg` (arm64 for Apple Silicon, x64 for Intel)
+- **Windows**: `.exe` installer (x64)
+- **Linux**: `.AppImage` (x64)
+
+Or build from source:
+
 ```bash
-# Install dependencies
 pnpm install
-
-# Rebuild native modules for Electron
 pnpm exec electron-rebuild -w better-sqlite3
-
-# Build the project
 pnpm run build
-
-# Launch desktop app
 make run
 ```
 
-### Environment Variables
+## Usage Guide
 
-Create a `.env` file (or use defaults):
+### Step 1: Add an Upstream Source
 
-```env
-DB_PATH=.run/agent-proxy.db   # SQLite database path
-PORT=8787                      # Server port
-```
+Go to **Sources** → **New Source** to configure an AI provider:
 
-## Usage
+- **Name**: A friendly label (e.g., "OpenAI Official", "Local Ollama")
+- **API Key**: The provider's API key (shared across all endpoints)
+- **Protocol Endpoints**: Add one or more protocol addresses:
+  - `openai_chat` → `https://api.openai.com/v1`
+  - `openai_response` → `https://api.openai.com/v1`
+  - `anthropic` → `https://api.anthropic.com`
+- **Models & Pricing**: Add supported models with optional per-token pricing (CNY/million tokens)
 
-### 1. Add an Upstream Source
+**Common source configurations:**
 
-Open the Web Dashboard → **Sources** → **New Source**:
+| Provider | Protocol | Base URL |
+|----------|----------|----------|
+| OpenAI | openai_chat | `https://api.openai.com/v1` |
+| Anthropic | anthropic | `https://api.anthropic.com` |
+| Azure OpenAI | openai_chat | `https://{resource}.openai.azure.com/openai/deployments/{deployment}` |
+| Ollama (local) | openai_chat | `http://localhost:11434/v1` |
+| DeepSeek | openai_chat | `https://api.deepseek.com/v1` |
+| Other compatible services | openai_chat | Varies |
 
-- Enter a name (e.g., "OpenAI Official")
-- Enter the API Key
-- Add protocol endpoints (e.g., `openai_chat` → `https://api.openai.com/v1`)
-- Add supported models with optional pricing
+### Step 2: Create a Model Entry
 
-### 2. Create a Channel
+Go to **Model Entries** → **New Entry** to create a virtual API entry point:
 
-Go to **Channels** → **New Channel**:
+- **Exposed Model Name**: The model name your clients will use (e.g., `gpt-4o`, `my-model`)
+- **Inbound Protocol**: Which API format to accept (`openai_chat`, `openai_response`, or `anthropic`)
+- **Upstream Bindings**: Select one or more source + model combinations
 
-- Set the exposed model name (e.g., `gpt-4o`) — this is what clients will use in `body.model`
-- Select the inbound protocol (e.g., `openai_chat`)
-- Bind one or more upstream source+model combinations
-- Switch active upstream anytime
+You can bind the same entry to multiple upstreams and switch between them at any time — perfect for failover or A/B testing.
 
-### 3. Call the Proxy
+### Step 3: Call the Proxy
+
+Use the exposed model name in your requests. LocalGate handles the rest:
 
 ```bash
+# OpenAI Chat format
 curl http://localhost:8787/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
+  -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello!"}]}'
+
+# Anthropic format
+curl http://localhost:8787/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_TOKEN" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model": "claude-3", "max_tokens": 1024, "messages": [{"role": "user", "content": "Hello!"}]}'
+```
+
+**Use with any OpenAI SDK** — just change the base URL:
+
+```python
+# Python
+import openai
+client = openai.OpenAI(
+    base_url="http://localhost:8787/v1",
+    api_key="YOUR_TOKEN"
+)
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+```javascript
+// JavaScript
+import OpenAI from 'openai';
+const client = new OpenAI({
+  baseURL: 'http://localhost:8787/v1',
+  apiKey: 'YOUR_TOKEN',
+});
+const response = await client.chat.completions.create({
+  model: 'gpt-4o',
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
 ```
 
 ### Supported API Endpoints
@@ -145,84 +151,48 @@ curl http://localhost:8787/v1/chat/completions \
 | OpenAI Responses | `POST /v1/responses` | `Authorization: Bearer <token>` |
 | Anthropic Messages | `POST /v1/messages` | `x-api-key: <token>` |
 
+Streaming (`"stream": true`) is fully supported for all protocols.
+
 ### Access Tokens
 
-- When **no tokens** are configured, the proxy allows open access (empty key works)
-- When tokens are configured, clients must provide a valid token via `Authorization: Bearer <token>` or `x-api-key` header
-- Tokens can be created, enabled/disabled, and managed from the Web Dashboard
+- **No tokens configured** → proxy is open, any key (or empty key) works
+- **Tokens configured** → clients must send a valid token via `Authorization: Bearer <token>` or `x-api-key`
+- Manage tokens in the dashboard: create, enable/disable, track last used time
 
-## Build Desktop Packages
+### Call Logs & Debugging
 
-```bash
-# Build for current platform
-make dist
+Every proxied request is logged with:
 
-# Build for specific platforms (run on the respective OS)
-make dist-mac      # macOS arm64 + x64
-make dist-win      # Windows x64 (NSIS installer)
-make dist-linux    # Linux x64 (AppImage)
+- Full request and response bodies (including streaming SSE)
+- Token counts (input, cached input, output)
+- Latency, status code, error details
+- Cost calculation based on upstream model pricing
+
+You can **star** important logs, **tag** them for filtering, and view formatted or raw payloads in the detail page.
+
+### Usage Statistics
+
+The dashboard provides multiple views:
+
+- **Token trends** — daily/monthly input/output token volume
+- **Stacked charts** — breakdown by source, entry, or model
+- **Cost tracking** — total cost with per-source/model breakdown
+- **Filters** — narrow by date range, protocol, source, entry, or model
+
+### Auto Log Retention
+
+Logs are automatically capped at 10,000 entries. When the limit is reached, the oldest non-starred logs are trimmed. **Starred logs are never deleted.**
+
+## Configuration
+
+Create a `.env` file to customize:
+
+```env
+DB_PATH=.run/agent-proxy.db   # SQLite database path
+PORT=8787                      # Server port
 ```
 
-Packages are output to the `release/` directory.
-
-## CI/CD
-
-GitHub Actions workflow (`.github/workflows/release.yml`) automatically builds and releases for all platforms when a version tag (`v*`) is pushed:
-
-- **macOS**: arm64 + x64 DMG & ZIP
-- **Windows**: x64 NSIS installer
-- **Linux**: x64 AppImage
-
-## Project Structure
-
-```
-agent-proxy/
-├── src/server/           # Backend server
-│   ├── db/               # Database schema & migrations
-│   ├── lib/              # Protocol definitions, usage normalization, log writer
-│   └── routes/           # Proxy routes & admin API
-├── web/                  # Frontend (React SPA)
-│   └── src/
-│       ├── components/   # Shared UI components & charts
-│       ├── lib/          # API client, i18n, content helpers
-│       └── pages/        # Sources, Channels, Logs, Stats pages
-├── electron/             # Electron desktop shell
-├── scripts/              # Migration utilities
-├── start.sh              # One-click server launcher
-├── Makefile              # Build & packaging commands
-└── schema.sql            # SQL reference schema
-```
-
-## API Reference
-
-### Admin API
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/settings` | Get global settings |
-| `PATCH` | `/api/settings` | Update global settings |
-| `GET` | `/api/meta` | Get server metadata (port, local IPs) |
-| `GET` | `/api/sources` | List upstream sources |
-| `POST` | `/api/sources` | Create a source |
-| `PATCH` | `/api/sources/:id` | Update a source |
-| `DELETE` | `/api/sources/:id` | Delete a source |
-| `POST` | `/api/sources/:id/test` | Test source connectivity |
-| `GET` | `/api/channels` | List channels |
-| `POST` | `/api/channels` | Create a channel |
-| `PATCH` | `/api/channels/:id` | Update a channel |
-| `PATCH` | `/api/channels/:id/active` | Switch active upstream binding |
-| `DELETE` | `/api/channels/:id` | Delete a channel |
-| `GET` | `/api/tokens` | List access tokens |
-| `POST` | `/api/tokens` | Create a token |
-| `PATCH` | `/api/tokens/:id` | Update a token |
-| `DELETE` | `/api/tokens/:id` | Delete a token |
-| `GET` | `/api/logs` | List call logs (paginated, filterable) |
-| `GET` | `/api/logs/:id` | Get log detail |
-| `PATCH` | `/api/logs/:id/star` | Star/unstar a log |
-| `PATCH` | `/api/logs/:id/tags` | Update log tags |
-| `DELETE` | `/api/logs` | Clear non-starred logs |
-| `GET` | `/api/stats` | Aggregated usage statistics |
-| `GET` | `/api/stats/stacked` | Stacked chart data |
+The database is auto-created on first launch. All data is stored locally in a single SQLite file.
 
 ## License
 

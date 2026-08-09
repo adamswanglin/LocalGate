@@ -22,6 +22,7 @@ app.route('/', admin);
 
 // 静态资源（绝对路径，保证打包态 cwd 不确定时仍可解析）
 app.use('/assets/*', serveStatic({ root: webDist }));
+app.use('/favicon.svg', serveStatic({ root: webDist }));
 app.use('/favicon.ico', serveStatic({ root: webDist }));
 
 // SPA fallback：非 API/非 v1 路径返回 index.html

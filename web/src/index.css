@@ -69,6 +69,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 表单控件默认不继承字体，强制统一为应用 sans 字体（含下拉 <option> 列表） */
+input, button, select, textarea, option, optgroup {
+  font-family: var(--font-sans);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

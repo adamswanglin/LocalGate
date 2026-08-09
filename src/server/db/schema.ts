@@ -46,11 +46,13 @@ export const sourceModels = sqliteTable('t_proxy_source_models', {
   uniqueIndex('ux_source_model').on(t.sourceId, t.model),
 ]);
 
-// 对外暴露的通道
+// 对外暴露的模型入口
 // 路由标识 = (对外模型名, API类型/协议)
-// 通道本身不配价格；可绑定多个「上游源模型」，人工切换当前生效的绑定
+// 入口本身不配价格；可绑定多个「上游源模型」，人工切换当前生效的绑定
 export const channels = sqliteTable('t_proxy_channels', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  // 入口显示名称（客户端 body.model 用 exposed_model，name 仅作标识/统计）
+  name: text('name').notNull(),
   // 入站协议 = 上游 provider: openai_chat | openai_response | anthropic
   protocol: text('protocol').notNull(),
   // 当前生效绑定 id（t_proxy_channel_sources.id）
@@ -68,7 +70,7 @@ export const channels = sqliteTable('t_proxy_channels', {
   uniqueIndex('ux_exposed_model_protocol').on(t.exposedModel, t.protocol),
 ]);
 
-// 通道↔上游绑定（选中一个上游源模型）
+// 模型入口↔上游绑定（选中一个上游源模型）
 export const channelSources = sqliteTable('t_proxy_channel_sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   channelId: integer('channel_id').notNull(),

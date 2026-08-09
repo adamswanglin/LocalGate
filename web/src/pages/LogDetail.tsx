@@ -85,7 +85,7 @@ export default function LogDetailPage() {
       <TagsEditor log={log} onChange={(tags) => setLog({ ...log, tags })} />
 
       <Card className="p-4 mb-4 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm">
-        <Field label={t('detail.metaChannel')}>{log.channelName || `#${log.channelId}`}</Field>
+        <Field label={t('detail.metaEntry')}>{log.channelName || `#${log.channelId}`}</Field>
         <Field label={t('detail.metaModel')}><span className="font-mono text-xs">{log.model || '-'}</span></Field>
         <Field label={t('detail.metaLatency')}>{log.latencyMs != null ? `${log.latencyMs}ms` : '-'}</Field>
         <Field label={t('detail.metaTime')}>{fmtDate(log.createdAt)}</Field>

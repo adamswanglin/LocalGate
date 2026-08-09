@@ -36,6 +36,7 @@ const DDL = [
      ON t_proxy_source_endpoints (source_id, protocol)`,
   `CREATE TABLE IF NOT EXISTS t_proxy_channels (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
+     name TEXT NOT NULL,
      protocol TEXT NOT NULL,
      source_id INTEGER NOT NULL,
      exposed_model TEXT,
@@ -140,13 +141,6 @@ function backfillSourceEndpoints(sqlite: BetterSqlite3Db) {
  *   3. channels.active_binding_id 指向新绑定。
  */
 // 老库 t_proxy_channels 曾含 name 列（现以 exposed_model 为唯一标识），幂等删除
-function dropChannelNameColumn(sqlite: BetterSqlite3Db) {
-  const cols = sqlite.prepare('PRAGMA table_info(t_proxy_channels)').all() as Array<{ name: string }>;
-  if (cols.some((c) => c.name === 'name')) {
-    sqlite.exec('ALTER TABLE t_proxy_channels DROP COLUMN name');
-  }
-}
-
 function backfillLegacyChannels(sqlite: BetterSqlite3Db) {
   const channels = sqlite.prepare(
     `SELECT id, source_id, upstream_model FROM t_proxy_channels WHERE source_id IS NOT NULL AND upstream_model IS NOT NULL`,
@@ -193,9 +187,6 @@ export function initSchema(sqlite: BetterSqlite3Db) {
       sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
     }
   }
-
-  // 老库通道去掉 name 列（对外模型名为唯一标识）
-  dropChannelNameColumn(sqlite);
 
   // 老源回填协议地址（多协议改造：旧 provider/base_url → 一条端点）
   backfillSourceEndpoints(sqlite);

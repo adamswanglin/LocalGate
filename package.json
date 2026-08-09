@@ -13,7 +13,7 @@
     "start": "node dist/server/index.js",
     "electron": "env -u ELECTRON_RUN_AS_NODE electron .",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "dist": "electron-builder",
+    "dist": "pnpm build && electron-builder",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:migrate": "tsx scripts/migrate-mysql-to-sqlite.ts"
@@ -26,6 +26,7 @@
     "drizzle-orm": "^0.38.3",
     "hono": "^4.6.14",
     "nanoid": "^5.0.9",
+    "electron-updater": "^6.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "zod": "^3.24.1"
@@ -107,8 +108,15 @@
       "category": "Development"
     },
     "dmg": {
-      "title": "${productName} ${version}",
+      "title": "${productName} ${version} ${arch}",
       "artifactName": "${productName}-${version}-${arch}.dmg"
-    }
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "adamswanglin",
+      "repo": "LocalGate",
+      "releaseType": "release"
+    },
+    "forceCodeSigning": false
   }
 }

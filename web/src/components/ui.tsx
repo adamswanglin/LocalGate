@@ -162,16 +162,16 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 backdrop-blur-sm p-4 pt-[10vh] animate-fade-in" onClick={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl animate-scale-in"
+        className="w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xl animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <h3 className="text-base font-semibold text-slate-800">{title}</h3>
           <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
             <X size={16} />
           </button>
         </div>
-        <div className="p-5">
+        <div className="p-5 overflow-y-auto">
           {children}
         </div>
       </div>

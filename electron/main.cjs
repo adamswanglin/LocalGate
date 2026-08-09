@@ -1,7 +1,8 @@
 // LocalGate — Electron 主进程（CommonJS）
 // 将 Hono 服务作为子进程启动（ELECTRON_RUN_AS_NODE=1，复用 Electron 内置 Node，
 // 与按 Electron ABI 重编的 better-sqlite3 匹配），再用 BrowserWindow 加载同源 React UI。
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn } = require('node:child_process');
 const { join } = require('node:path');
 const { mkdirSync, appendFileSync } = require('node:fs');
@@ -18,6 +19,12 @@ process.on('uncaughtException', (e) => dlog('uncaughtException:', e?.stack || e)
 process.on('unhandledRejection', (e) => dlog('unhandledRejection:', e?.stack || e));
 
 let serverProc = null;
+let mainWin = null;     // 主窗口：macOS 关闭时隐藏而不销毁，常驻菜单栏
+let tray = null;        // 菜单栏托盘图标
+let isQuitting = false; // 真正退出时（Cmd+Q / 托盘菜单退出）才允许窗口关闭
+let updateInfo = null;  // 可用更新信息
+
+const isMac = process.platform === 'darwin';
 
 // ── 环境准备（传给子进程，必须在 spawn 之前确定） ──────────────
 // 数据库：打包态放 userData（跨版本持久），开发态沿用项目 .run/
@@ -87,18 +94,45 @@ function stopServer() {
   }
 }
 
+// 显示并聚焦主窗口（托盘点击 / 停靠栏点击 / 二次启动时复用）
+function showWindow() {
+  if (!mainWin || mainWin.isDestroyed()) return;
+  if (mainWin.isMinimized()) mainWin.restore();
+  if (!mainWin.isVisible()) mainWin.show();
+  mainWin.focus();
+}
+
+// 创建菜单栏托盘图标（template 单色，随浅色/深色菜单栏自动适配）
+function createTray() {
+  const image = nativeImage.createFromPath(join(__dirname, '..', 'electron', 'trayTemplate.png'));
+  image.setTemplateImage(true);
+  tray = new Tray(image);
+  tray.setToolTip('LocalGate');
+  const ctxMenu = Menu.buildFromTemplate([
+    { label: '打开 LocalGate', click: showWindow },
+    { type: 'separator' },
+    {
+      label: '退出 LocalGate',
+      click: () => {
+        isQuitting = true;
+        app.quit(); // before-quit 中会回收服务子进程
+      },
+    },
+  ]);
+  // 左键点击打开窗口（不用 setContextMenu——它可能让左键也弹菜单而吞掉 click 事件）
+  tray.on('click', showWindow);
+  // 右键弹出菜单
+  tray.on('right-click', () => tray.popUpContextMenu(ctxMenu));
+  dlog('tray created');
+}
+
 // ── 单实例 ──────────────────────────────────────────────────────
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    const wins = BrowserWindow.getAllWindows();
-    if (wins.length) {
-      const w = wins[0];
-      if (w.isMinimized()) w.restore();
-      w.focus();
-    }
+    showWindow();
   });
 
   app.whenReady().then(async () => {
@@ -112,7 +146,6 @@ if (!gotLock) {
     }
 
     // 跨平台窗口选项：macOS 用隐藏标题栏 + 毛玻璃，Win/Linux 用系统标题栏
-    const isMac = process.platform === 'darwin';
     const winOptions = {
       width: 1280,
       height: 840,
@@ -138,6 +171,7 @@ if (!gotLock) {
     }
 
     const win = new BrowserWindow(winOptions);
+    mainWin = win;
 
     win.once('ready-to-show', () => win.show());
     win.loadURL(`http://127.0.0.1:${PORT}/`);
@@ -150,21 +184,91 @@ if (!gotLock) {
       }
       return { action: 'allow' };
     });
+
+    // 关闭时隐藏到菜单栏托盘，不退出（真正退出见 before-quit 的 isQuitting）
+    if (isMac) {
+      win.on('close', (e) => {
+        if (!isQuitting) {
+          e.preventDefault();
+          win.hide();
+        }
+      });
+    }
+
+    createTray();
+
+    // ── 自动更新检查 ──────────────────────────────────────
+    autoUpdater.autoDownload = false; // 不自动下载，先通知用户
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', (info) => {
+      dlog('update available:', info.version);
+      updateInfo = { version: info.version, releaseNotes: info.releaseNotes };
+      // 通知前端显示更新横幅
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('update-available', { version: info.version });
+      }
+    });
+
+    autoUpdater.on('update-not-available', () => {
+      dlog('no update available');
+    });
+
+    autoUpdater.on('error', (err) => {
+      dlog('autoUpdater error:', err?.message || err);
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('update-download-progress', {
+          percent: Math.round(progress.percent),
+        });
+      }
+    });
+
+    autoUpdater.on('update-downloaded', () => {
+      dlog('update downloaded');
+      if (mainWin && !mainWin.isDestroyed()) {
+        mainWin.webContents.send('update-downloaded');
+      }
+    });
+
+    // IPC: 前端请求检查更新
+    ipcMain.on('check-for-updates', () => {
+      dlog('frontend requested check for updates');
+      if (!isDev) {
+        autoUpdater.checkForUpdates().catch((e) => dlog('check update failed:', e?.message || e));
+      }
+    });
+
+    // IPC: 前端请求下载更新
+    ipcMain.on('download-update', () => {
+      dlog('user requested download update');
+      autoUpdater.downloadUpdate().catch((e) => dlog('download update failed:', e?.message || e));
+    });
+
+    // IPC: 前端请求安装并重启
+    ipcMain.on('install-update', () => {
+      dlog('user requested install & restart');
+      autoUpdater.quitAndInstall();
+    });
   });
 
-  // 工具型应用：关窗即退出，并回收服务子进程
   app.on('window-all-closed', () => {
-    stopServer();
-    app.quit();
+    // macOS：关窗只是隐藏，应用常驻菜单栏；其余平台保持「关窗即退出」
+    if (!isMac) {
+      stopServer();
+      app.quit();
+    }
   });
 
   app.on('before-quit', () => {
+    isQuitting = true; // 允许窗口真正关闭
     stopServer();
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      app.whenReady().then(() => app.emit('ready'));
-    }
+    // 点击 Dock 图标时恢复窗口（窗口可能处于隐藏状态）
+    showWindow();
   });
 }

@@ -109,7 +109,7 @@ export default function LogsPage() {
           <option value="ok">{t('logs.filterOk')}</option>
           <option value="error">{t('logs.filterError')}</option>
         </Select>
-        <Input placeholder="Channel ID" value={f.channelId} onChange={(e) => setF({ ...f, channelId: e.target.value })} className="w-36" />
+        <Input placeholder="Entry ID" value={f.channelId} onChange={(e) => setF({ ...f, channelId: e.target.value })} className="w-36" />
         <button
           onClick={() => setF({ ...f, starred: !f.starred })}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs transition-colors cursor-pointer ${
@@ -139,7 +139,7 @@ export default function LogsPage() {
             <tr>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colTime')}</th>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colStar')}</th>
-              <th className="text-left px-4 py-3 font-medium">{t('logs.colChannel')}</th>
+              <th className="text-left px-4 py-3 font-medium">{t('logs.colEntry')}</th>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colProtocol')}</th>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colModel')}</th>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colTags')}</th>

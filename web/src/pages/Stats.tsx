@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, Source, Channel, StatsResult, StatRow, StackedStatsResult } from '../lib/api.js';
+import { api, Source, ModelEntry, StatsResult, StatRow, StackedStatsResult } from '../lib/api.js';
 import { Select, Card, SkeletonRow, EmptyState } from '../components/ui.js';
 import { LineChart, BarChart, StackedBarChart, COLORS } from '../components/chart.js';
 import { BarChart3, ArrowDownToLine, ArrowUpFromLine, Hash, Database, Calendar, Filter, Coins } from 'lucide-react';
@@ -9,14 +9,14 @@ const GROUPS = [
   { v: 'day', key: 'stats.groups.day' },
   { v: 'month', key: 'stats.groups.month' },
   { v: 'source', key: 'stats.groups.source' },
-  { v: 'channel', key: 'stats.groups.channel' },
+  { v: 'entry', key: 'stats.groups.entry' },
   { v: 'model', key: 'stats.groups.model' },
 ];
 
 export default function StatsPage() {
   const [data, setData] = useState<StatsResult | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [entries, setEntries] = useState<ModelEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [f, setF] = useState({
     groupBy: 'day',
@@ -30,7 +30,7 @@ export default function StatsPage() {
 
   useEffect(() => {
     api.sources.list().then(setSources).catch(() => {});
-    api.channels.list().then(setChannels).catch(() => {});
+    api.modelEntries.list().then(setEntries).catch(() => {});
   }, []);
 
   async function load() {
@@ -161,10 +161,10 @@ export default function StatsPage() {
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterChannel')}</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterEntry')}</label>
             <Select value={f.channelId} onChange={(e) => setF({ ...f, channelId: e.target.value })} className="w-full">
-              <option value="">{t('stats.filterAllChannels')}</option>
-              {channels.map((c) => <option key={c.id} value={c.id}>{c.exposedModel}</option>)}
+              <option value="">{t('stats.filterAllEntries')}</option>
+              {entries.map((c) => <option key={c.id} value={c.id}>{c.exposedModel}</option>)}
             </Select>
           </div>
           <div>

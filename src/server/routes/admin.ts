@@ -27,7 +27,7 @@ async function resolveSource(sourceId: number, protocol: Protocol) {
   return [src, null] as const;
 }
 
-/* ---------------- 上游模型 / 通道绑定 辅助 ---------------- */
+/* ---------------- 上游模型 / 入口绑定 辅助 ---------------- */
 
 function toNullableNum(v: any): number | null {
   if (v === null || v === undefined || v === '') return null;
@@ -88,7 +88,7 @@ function replaceSourceModels(sourceId: number, models: any[]) {
   tx(models);
 }
 
-/** 该上游的模型中被任一通道绑定引用的列表 */
+/** 该上游的模型地被任一入口绑定引用的列表 */
 function referencedModels(sourceId: number): { id: number; model: string }[] {
   return sqlite.prepare(
     `SELECT DISTINCT sm.id, sm.model FROM t_proxy_channel_sources cs
@@ -97,7 +97,7 @@ function referencedModels(sourceId: number): { id: number; model: string }[] {
   ).all(sourceId) as { id: number; model: string }[];
 }
 
-/** 该上游被任一通道绑定引用的数量 */
+/** 该上游被任一入口绑定引用的数量 */
 function sourceReferencedByChannels(sourceId: number): number {
   const row = sqlite.prepare(
     `SELECT COUNT(*) AS n FROM t_proxy_channel_sources cs
@@ -175,7 +175,7 @@ async function attachEndpoints(sources: any[]): Promise<any[]> {
   return sources.map((s) => ({ ...s, endpoints: bySource.get(s.id) || [] }));
 }
 
-/** 绑定该源模型的通道所用协议集合（删除协议地址前检查用） */
+/** 绑定该源模型的入口所用协议集合（删除协议地址前检查用） */
 function sourceReferencedProtocols(sourceId: number): string[] {
   const rows = sqlite.prepare(
     `SELECT DISTINCT c.protocol AS protocol FROM t_proxy_channel_sources cs
@@ -186,12 +186,12 @@ function sourceReferencedProtocols(sourceId: number): string[] {
   return rows.map((r) => r.protocol).filter(Boolean);
 }
 
-/** 校验并规整通道的绑定列表（每项 = 一个上游源模型 id） */
+/** 校验并规整入口的绑定列表（每项 = 一个上游源模型 id） */
 async function normalizeBindingsInput(
   bindings: any,
   protocol: Protocol,
 ): Promise<{ value?: { sourceModelId: number; sourceId: number; model: string }[]; error?: string }> {
-  if (!Array.isArray(bindings) || !bindings.length) return { error: '通道至少需要一个绑定' };
+  if (!Array.isArray(bindings) || !bindings.length) return { error: '入口至少需要一个绑定' };
   const value: { sourceModelId: number; sourceId: number; model: string }[] = [];
   const seen = new Set<number>();
   for (const b of bindings) {
@@ -201,7 +201,7 @@ async function normalizeBindingsInput(
     const [sm] = await db.select().from(schema.sourceModels).where(eq(schema.sourceModels.id, smId));
     if (!sm) return { error: `上游模型 #${smId} 不存在` };
     const [, srcErr] = await resolveSource(sm.sourceId, protocol);
-    if (srcErr) return { error: `上游模型 "${sm.model}" 的 provider 与通道协议不一致` };
+    if (srcErr) return { error: `上游模型 "${sm.model}" 的 provider 与入口协议不一致` };
     value.push({ sourceModelId: smId, sourceId: sm.sourceId, model: sm.model });
   }
   return { value };
@@ -235,7 +235,7 @@ function replaceChannelBindings(channelId: number, list: { sourceModelId: number
   return tx(list);
 }
 
-/** 通道的绑定列表（富化：源名 + 模型 + 价格） */
+/** 入口的绑定列表（富化：源名 + 模型 + 价格） */
 async function loadChannelBindings(channelId: number): Promise<any[]> {
   const bindingRows = await db.select().from(schema.channelSources).where(eq(schema.channelSources.channelId, channelId));
   if (!bindingRows.length) return [];
@@ -263,7 +263,7 @@ function enrichBinding(b: any, sm: any, srcById: Map<number, any>): any {
   });
 }
 
-/** 给 channel 列表附加 bindings 数组 */
+/** 给 entry 列表附加 bindings 数组 */
 async function attachBindings(channels: any[]): Promise<any[]> {
   if (!channels.length) return channels;
   const ids = channels.map((c) => c.id);
@@ -292,7 +292,7 @@ async function loadChannelWithBindings(channelId: number): Promise<any | null> {
   return full;
 }
 
-/** 同步反规范化：channels.source_id / upstream_model = 当前生效绑定 */
+/** 同步反规范化：entries.source_id / upstream_model = 当前生效绑定 */
 async function denormalizeChannel(channelId: number) {
   const [ch] = await db.select().from(schema.channels).where(eq(schema.channels.id, channelId));
   if (!ch) return;
@@ -399,7 +399,7 @@ admin.patch('/api/sources/:id', async (c) => {
     const newProtocols = new Set(eps.map((e) => e.protocol));
     const blocked = sourceReferencedProtocols(id).filter((p) => !newProtocols.has(p as Protocol));
     if (blocked.length) {
-      return c.json({ error: `协议 "${blocked.join('", "')}" 正被通道绑定使用，请先在通道中解绑` }, 400);
+      return c.json({ error: `协议 "${blocked.join('", "')}" 正被入口绑定使用，请先在入口中解绑` }, 400);
     }
     replaceSourceEndpoints(id, eps);
     // 同步旧列镜像（首个端点）
@@ -412,7 +412,7 @@ admin.patch('/api/sources/:id', async (c) => {
     const newNames = new Set(models.value!.map((m) => m.model));
     const blocked = referencedModels(id).filter((m) => !newNames.has(m.model));
     if (blocked.length) {
-      return c.json({ error: `模型 "${blocked.map((m) => m.model).join('", "')}" 正被通道绑定，请先在通道中解绑` }, 400);
+      return c.json({ error: `模型 "${blocked.map((m) => m.model).join('", "')}" 正被入口绑定，请先在入口中解绑` }, 400);
     }
     replaceSourceModels(id, models.value!);
   }
@@ -424,7 +424,7 @@ admin.delete('/api/sources/:id', async (c) => {
   const id = Number(c.req.param('id'));
   // 检查是否被通道绑定引用（含非当前生效的绑定）
   if (sourceReferencedByChannels(id) > 0) {
-    return c.json({ error: '该上游源的模型正被通道绑定使用，请先解绑' }, 400);
+    return c.json({ error: '该上游源的模型正被入口绑定使用，请先解绑' }, 400);
   }
   await sqlite.prepare('DELETE FROM t_proxy_source_endpoints WHERE source_id = ?').run(id);
   await sqlite.prepare('DELETE FROM t_proxy_source_models WHERE source_id = ?').run(id);
@@ -471,7 +471,7 @@ admin.post('/api/sources/:id/test', async (c) => {
   return c.json({ results });
 });
 
-/* ---------------- 通道 channels ---------------- */
+/* ---------------- 模型入口 entries ---------------- */
 
 admin.get('/api/channels', async (c) => {
   const rows = await db.select().from(schema.channels).orderBy(desc(schema.channels.createdAt));
@@ -481,9 +481,9 @@ admin.get('/api/channels', async (c) => {
 
 admin.post('/api/channels', async (c) => {
   const body = await c.req.json();
-  const { protocol, exposedModel, enabled } = body;
-  if (!protocol || !exposedModel) {
-    return c.json({ error: 'missing fields (protocol, exposedModel)' }, 400);
+  const { name, protocol, exposedModel, enabled } = body;
+  if (!name || !protocol || !exposedModel) {
+    return c.json({ error: 'missing fields (name, protocol, exposedModel)' }, 400);
   }
   if (!PROTOCOLS[protocol as Protocol]) {
     return c.json({ error: 'invalid protocol' }, 400);
@@ -495,6 +495,7 @@ admin.post('/api/channels', async (c) => {
   let row: any;
   try {
     [row] = await db.insert(schema.channels).values({
+      name: String(name).trim(),
       protocol,
       sourceId: list[0].sourceId,
       exposedModel: String(exposedModel).trim(),
@@ -522,7 +523,7 @@ admin.patch('/api/channels/:id', async (c) => {
   if (!current) return c.json({ error: 'not found' }, 404);
 
   const update: any = {};
-  for (const k of ['protocol', 'exposedModel'] as const) {
+  for (const k of ['name', 'protocol', 'exposedModel'] as const) {
     if (body[k] !== undefined) update[k] = body[k];
   }
   if (typeof body.enabled === 'boolean') update.enabled = body.enabled ? 1 : 0;
@@ -550,7 +551,7 @@ admin.patch('/api/channels/:id', async (c) => {
     }
     update.activeBindingId = active;
   } else if (update.activeBindingId != null) {
-    // 校验生效绑定属于该通道
+    // 校验生效绑定属于该入口
     const exists = await db.select({ id: schema.channelSources.id }).from(schema.channelSources)
       .where(and(eq(schema.channelSources.id, update.activeBindingId), eq(schema.channelSources.channelId, id)));
     if (!exists.length) return c.json({ error: 'active binding not in channel' }, 400);
@@ -559,7 +560,7 @@ admin.patch('/api/channels/:id', async (c) => {
   // 只改协议时，需校验既有绑定仍与新协议匹配
   if (update.protocol && !Array.isArray(body.bindings)) {
     const existing = await loadChannelBindings(id);
-    if (!existing.length) return c.json({ error: '通道至少需要一个绑定' }, 400);
+    if (!existing.length) return c.json({ error: '入口至少需要一个绑定' }, 400);
     for (const b of existing) {
       if (b.sourceId == null) continue;
       const [, srcErr] = await resolveSource(Number(b.sourceId), newProtocol);
@@ -598,6 +599,167 @@ admin.delete('/api/channels/:id', async (c) => {
   const id = Number(c.req.param('id'));
   await sqlite.prepare('DELETE FROM t_proxy_channel_sources WHERE channel_id = ?').run(id);
   await db.delete(schema.channels).where(eq(schema.channels.id, id));
+  return c.json({ ok: true });
+});
+
+/* ---------------- 模型入口组 model-groups（按 exposedModel 聚合多协议） ---------------- */
+// 一个 modelId = 共享同一 exposedModel 的多条 channel（每条一个协议，各自多个上游绑定）。
+// 这里提供按 modelId 整组保存的原子接口，便于前端用「一个弹窗管所有协议」。
+
+/** 返回某 exposedModel 下的全部 channel（含 bindings），供组接口回传 */
+async function loadGroupChannels(exposedModel: string): Promise<any[]> {
+  const rows = await db.select().from(schema.channels)
+    .where(eq(schema.channels.exposedModel, exposedModel));
+  return attachBindings(rows.map(normalizeBool));
+}
+
+/** 校验并规整前端传入的 protocols 数组（每项 = 协议 + 多个上游绑定 + activeIndex） */
+async function normalizeGroupProtocols(protocols: any): Promise<{
+  value?: Array<{ protocol: Protocol; enabled: number; bindings: { sourceModelId: number; sourceId: number; model: string }[]; activeIndex: number }>;
+  error?: string;
+}> {
+  if (!Array.isArray(protocols) || !protocols.length) return { error: '至少配置一个 API 类型' };
+  const seen = new Set<string>();
+  const value: any[] = [];
+  for (const p of protocols) {
+    const protocol = String(p?.protocol ?? '').trim();
+    if (!PROTOCOLS[protocol as Protocol]) return { error: `无效的 API 类型 "${protocol}"` };
+    if (seen.has(protocol)) return { error: `API 类型 "${protocol}" 重复` };
+    seen.add(protocol);
+    // 未配置上游的类型：跳过（不落库）—— 前端默认展示全部三类，留空的不保存
+    const rawBindings = Array.isArray(p?.bindings) ? p.bindings : [];
+    if (!rawBindings.length) continue;
+    const bindings = await normalizeBindingsInput(rawBindings, protocol as Protocol);
+    if (bindings.error) return { error: bindings.error };
+    const activeIndex = Number.isInteger(p?.activeIndex) ? Math.max(0, Number(p.activeIndex)) : 0;
+    value.push({
+      protocol: protocol as Protocol,
+      enabled: (p?.enabled ?? true) ? 1 : 0,
+      bindings: bindings.value!,
+      activeIndex,
+    });
+  }
+  if (!value.length) return { error: '至少为一个 API 类型配置上游绑定' };
+  return { value };
+}
+
+// 新建一个 modelId：为每个协议建一条 channel
+admin.post('/api/model-groups', async (c) => {
+  const body = await c.req.json();
+  const exposedModel = String(body?.exposedModel ?? '').trim();
+  const name = String(body?.name ?? '').trim() || exposedModel;
+  if (!exposedModel) return c.json({ error: 'missing exposedModel' }, 400);
+  const protos = await normalizeGroupProtocols(body?.protocols);
+  if (protos.error) return c.json({ error: protos.error }, 400);
+  const list = protos.value!;
+
+  // (exposedModel, protocol) 不能已存在
+  const exist = await db.select({ id: schema.channels.id }).from(schema.channels)
+    .where(eq(schema.channels.exposedModel, exposedModel));
+  if (exist.length) return c.json({ error: `对外模型 "${exposedModel}" 已存在` }, 400);
+
+  const insCh = sqlite.prepare(
+    `INSERT INTO t_proxy_channels (name, protocol, source_id, exposed_model, upstream_model, enabled) VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const updActive = sqlite.prepare(`UPDATE t_proxy_channels SET active_binding_id = ? WHERE id = ?`);
+  const channelIds: number[] = [];
+  try {
+    const tx = sqlite.transaction(() => {
+      for (const p of list) {
+        const info = insCh.run(name, p.protocol, p.bindings[0].sourceId, exposedModel, p.bindings[0].model, p.enabled);
+        const chId = Number(info.lastInsertRowid);
+        const ids = insertChannelBindings(chId, p.bindings);
+        updActive.run(ids[p.activeIndex] ?? ids[0], chId);
+        channelIds.push(chId);
+      }
+    });
+    tx();
+  } catch (e: any) {
+    if (isUniqueViolation(e)) return c.json({ error: `对外模型 "${exposedModel}" 已存在` }, 400);
+    throw e;
+  }
+  for (const id of channelIds) await denormalizeChannel(id);
+  return c.json(await loadGroupChannels(exposedModel));
+});
+
+// 更新/重命名/重组一个 modelId（body.key = 旧 exposedModel；用 body 而非 URL 段，兼容空/特殊字符）
+admin.put('/api/model-groups', async (c) => {
+  const body = await c.req.json();
+  const oldModel = String(body?.key ?? body?.exposedModel ?? '');
+  const newModel = String(body?.exposedModel ?? '').trim();
+  const name = String(body?.name ?? '').trim() || newModel;
+  if (!newModel) return c.json({ error: 'missing exposedModel' }, 400);
+  const protos = await normalizeGroupProtocols(body?.protocols);
+  if (protos.error) return c.json({ error: protos.error }, 400);
+  const list = protos.value!;
+
+  const oldRows = (await db.select({ id: schema.channels.id, protocol: schema.channels.protocol })
+    .from(schema.channels)
+    .where(sql`COALESCE(${schema.channels.exposedModel}, '') = ${oldModel}`)) as Array<{ id: number; protocol: string }>;
+  if (!oldRows.length) return c.json({ error: 'model not found' }, 404);
+
+  const insCh = sqlite.prepare(
+    `INSERT INTO t_proxy_channels (name, protocol, source_id, exposed_model, upstream_model, enabled) VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const updCh = sqlite.prepare(
+    `UPDATE t_proxy_channels SET name = ?, exposed_model = ?, enabled = ? WHERE id = ?`,
+  );
+  const updActive = sqlite.prepare(`UPDATE t_proxy_channels SET active_binding_id = ? WHERE id = ?`);
+  const delBindings = sqlite.prepare(`DELETE FROM t_proxy_channel_sources WHERE channel_id = ?`);
+  const delCh = sqlite.prepare(`DELETE FROM t_proxy_channels WHERE id = ?`);
+
+  const touchedIds: number[] = [];
+  try {
+    const tx = sqlite.transaction(() => {
+      const seen = new Set<string>();
+      for (const p of list) {
+        const exist = oldRows.find((o) => o.protocol === p.protocol);
+        let chId: number;
+        if (exist) {
+          updCh.run(name, newModel, p.enabled, exist.id);
+          chId = exist.id;
+          const ids = replaceChannelBindings(chId, p.bindings);
+          updActive.run(ids[p.activeIndex] ?? ids[0], chId);
+        } else {
+          const info = insCh.run(name, p.protocol, p.bindings[0].sourceId, newModel, p.bindings[0].model, p.enabled);
+          chId = Number(info.lastInsertRowid);
+          const ids = insertChannelBindings(chId, p.bindings);
+          updActive.run(ids[p.activeIndex] ?? ids[0], chId);
+        }
+        seen.add(p.protocol);
+        touchedIds.push(chId);
+      }
+      // 删除 payload 中不再包含的旧协议
+      for (const o of oldRows) {
+        if (!seen.has(o.protocol)) {
+          delBindings.run(o.id);
+          delCh.run(o.id);
+        }
+      }
+    });
+    tx();
+  } catch (e: any) {
+    if (isUniqueViolation(e)) {
+      return c.json({ error: `对外模型 "${newModel}" + 某协议已存在（可能与其他模型冲突）` }, 400);
+    }
+    throw e;
+  }
+  for (const id of touchedIds) await denormalizeChannel(id);
+  return c.json(await loadGroupChannels(newModel));
+});
+
+// 删除整个 modelId（其全部协议的 channel）；body.key = exposedModel，兼容空/特殊字符
+admin.delete('/api/model-groups', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const model = String(body?.key ?? '');
+  const rows = await db.select({ id: schema.channels.id }).from(schema.channels)
+    .where(sql`COALESCE(${schema.channels.exposedModel}, '') = ${model}`);
+  const delBindings = sqlite.prepare(`DELETE FROM t_proxy_channel_sources WHERE channel_id = ?`);
+  const tx = sqlite.transaction((ids: number[]) => {
+    for (const id of ids) { delBindings.run(id); }
+  });
+  tx(rows.map((r) => r.id));
+  await db.delete(schema.channels).where(sql`COALESCE(${schema.channels.exposedModel}, '') = ${model}`);
   return c.json({ ok: true });
 });
 
@@ -848,7 +1010,7 @@ admin.get('/api/stats', async (c) => {
     if (ids.length) {
       const table = groupBy === 'source' ? schema.sources : schema.channels;
       const idCol = groupBy === 'source' ? schema.sources.id : schema.channels.id;
-      const nameCol = groupBy === 'source' ? schema.sources.name : schema.channels.exposedModel;
+      const nameCol = groupBy === 'source' ? schema.sources.name : schema.channels.name;
       const nameRows = await db.select({ id: idCol, name: nameCol }).from(table);
       for (const nr of nameRows) names.set(nr.id, nr.name ?? '');
     }
@@ -923,7 +1085,7 @@ admin.get('/api/stats/stacked', async (c) => {
     }
   }
   if (needChannelNames) {
-    for (const r of await db.select({ id: schema.channels.id, name: schema.channels.exposedModel }).from(schema.channels)) {
+    for (const r of await db.select({ id: schema.channels.id, name: schema.channels.name }).from(schema.channels)) {
       channelNames.set(r.id, r.name ?? '');
     }
   }

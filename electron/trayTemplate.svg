@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 单色托盘图标（macOS menu bar template）：
+       复用主 logo 的 gateway "G" 形状，放大填满画布，去掉背景与彩色细节。 -->
+  <!-- 缩放 1.4 后回移到画布中心：256 - 1.4*256 = -102.4 -->
+  <g transform="translate(-102.4, -102.4) scale(1.4)">
+    <path
+      d="M 356 256
+         L 400 256
+         L 400 368
+         L 112 368
+         L 112 144
+         L 400 144"
+      fill="none"
+      stroke="#000000"
+      stroke-width="40"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>

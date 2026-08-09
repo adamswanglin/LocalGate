@@ -9,6 +9,7 @@ const proxy = new Hono();
 
 interface ResolvedChannel {
   id: number;
+  name: string;
   sourceId: number;
   protocol: string;
   exposedModel: string;
@@ -104,7 +105,7 @@ async function checkAuth(headers: Headers): Promise<{ ok: true } | { ok: false; 
   return { ok: true };
 }
 
-/* ---------------- 通道 / 绑定 / 上游解析 ---------------- */
+/* ---------------- 入口 / 绑定 / 上游解析 ---------------- */
 
 async function findChannel(exposedModel: string, protocol: Protocol): Promise<ResolvedChannel | null> {
   const rows = await db
@@ -115,6 +116,7 @@ async function findChannel(exposedModel: string, protocol: Protocol): Promise<Re
   if (!ch) return null;
   return {
     id: ch.id,
+    name: ch.name ?? '',
     sourceId: ch.sourceId,
     protocol: ch.protocol,
     exposedModel: ch.exposedModel ?? '',
@@ -124,9 +126,9 @@ async function findChannel(exposedModel: string, protocol: Protocol): Promise<Re
 }
 
 /**
- * 解析通道当前生效的绑定：
- * channel → 绑定（active_binding_id 优先，缺失/无效回退第一个）→ 上游源模型（含价格）→ 上游源。
- * 返回 null 表示通道没有任何可用绑定。
+ * 解析入口当前生效的绑定：
+ * entry → 绑定（active_binding_id 优先，缺失/无效回退第一个）→ 上游源模型（含价格）→ 上游源。
+ * 返回 null 表示入口没有任何可用绑定。
  */
 async function resolveActiveBinding(channel: ResolvedChannel) {
   const bindings = await db.select().from(schema.channelSources).where(eq(schema.channelSources.channelId, channel.id));
@@ -228,13 +230,13 @@ async function handleProxy(c: any, protocol: Protocol) {
 
   const channel = await findChannel(exposedModel, protocol);
   if (!channel) {
-    return c.json({ error: `no channel for model "${exposedModel}" (${protocol})` }, 404);
+    return c.json({ error: `no entry for model "${exposedModel}" (${protocol})` }, 404);
   }
 
   // 当前生效绑定 → 上游源模型 → 上游源
   const resolved = await resolveActiveBinding(channel);
   if (!resolved) {
-    return c.json({ error: 'channel has no usable upstream binding' }, 404);
+    return c.json({ error: 'entry has no usable upstream binding' }, 404);
   }
   const { sourceModel, source } = resolved;
   if (!source.enabled) {
@@ -389,7 +391,7 @@ function insertLog(
   const costs = computeCost(norm, pricing);
   const values = {
     channelId: channel.id,
-    channelName: channel.exposedModel ?? '',
+    channelName: channel.name ?? '',
     sourceId: source?.id ?? channel.sourceId,
     protocol,
     model,

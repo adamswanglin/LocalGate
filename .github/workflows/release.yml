@@ -10,13 +10,14 @@ permissions:
   contents: write
 
 jobs:
-  # ── macOS: arm64 与 x64 各自单独构建 ──────────────────────
-  # 关键：分两次独立 `--arm64` / `--x64` 构建，绝不在一次 --mac 里同打双架构——
-  # 否则 better-sqlite3 等原生模块交叉编译会把 x86_64 的 .node 污染进 arm64 包，
-  # arm64 机器上 dlopen 报 "incompatible architecture" 而秒退。
-  # 两次独立构建都跑在 macos-14(arm64) 上，x64 由 electron-builder 交叉编译，
-  # 并在构建后用 file 校验 .node 架构，不对则直接 fail，不发坏包。
-  # （macos-13 Intel runner 排队极慢，不必等。）
+  # ── macOS: arm64 与 x64 各自在原生架构 runner 上构建 ──────────
+  # 必须用原生 runner，不能在 arm64 上交叉编 x64：better-sqlite3 等
+  # 原生模块在 Apple Silicon 上交叉编译会得到被反转/污染的架构（实测 --arm64
+  # 产出 x86_64、--x64 产出 arm64），arm64 机器 dlopen 报
+  # "incompatible architecture" 而秒退。
+  # arm64 走 macos-14（原生、快）；x64 走 macos-13（原生 Intel，慢但稳）。
+  # 不再手动 electron-rebuild——它会把宿主机架构 .node 烤进 node_modules
+  # 干扰 electron-builder 的 npmRebuild，由 npmRebuild 按目标架构重编即可。
   build-mac:
     name: macOS (${{ matrix.arch }})
     strategy:
@@ -25,7 +26,7 @@ jobs:
         include:
           - os: macos-14
             arch: arm64
-          - os: macos-14
+          - os: macos-13
             arch: x64
     runs-on: ${{ matrix.os }}
     steps:
@@ -50,9 +51,6 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           node -e "const fs=require('fs');const p='./package.json';const j=JSON.parse(fs.readFileSync(p));j.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n')"
           echo "package version -> ${VERSION}"
-
-      # 原生架构重编 better-sqlite3（与 Electron ABI 匹配）
-      - run: pnpm exec electron-rebuild -w better-sqlite3
 
       - run: pnpm run build
 

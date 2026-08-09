@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, X } from 'lucide-react';
+import { Copy, Check, X, ChevronDown } from 'lucide-react';
 import { t } from '../lib/i18n.js';
 
 /* ───────────── Button ───────────── */
@@ -16,10 +16,10 @@ export function Button({
   const base = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all duration-150 active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none cursor-pointer select-none';
   const sizes = { sm: 'px-2.5 py-1.5 text-xs', md: 'px-4 py-2 text-sm' };
   const variants = {
-    default: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm',
+    default: 'bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 shadow-sm',
     primary: 'bg-brand-600 hover:bg-brand-500 text-white shadow-sm shadow-brand-600/20',
     danger: 'bg-red-600 hover:bg-red-500 text-white shadow-sm shadow-red-600/20',
-    ghost: 'bg-transparent hover:bg-slate-100 text-slate-500 hover:text-slate-700',
+    ghost: 'bg-transparent hover:bg-stone-100 text-stone-500 hover:text-stone-700',
   };
   return (
     <button className={`${base} ${sizes[size]} ${variants[variant]}`} {...props}>
@@ -33,7 +33,7 @@ export function Button({
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className="w-full rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-colors"
+      className="w-full rounded-lg bg-white border border-stone-200 px-3 py-2 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-colors"
       {...props}
     />
   );
@@ -43,17 +43,23 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select
-      className="w-full rounded-lg bg-white border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-colors appearance-none cursor-pointer"
-      {...props}
-    />
+    <div className="relative">
+      <select
+        className="w-full appearance-none rounded-lg bg-white border border-stone-200 px-3 py-2 pr-9 text-sm text-stone-800 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-colors cursor-pointer"
+        {...props}
+      />
+      <ChevronDown
+        size={16}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400"
+      />
+    </div>
   );
 }
 
 /* ───────────── Label ───────────── */
 
 export function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs font-medium text-slate-500 mb-1.5">{children}</label>;
+  return <label className="block text-xs font-medium text-stone-500 mb-1.5">{children}</label>;
 }
 
 /* ───────────── Toggle ───────────── */
@@ -64,9 +70,13 @@ export function Toggle({ checked, onChange, disabled }: { checked: boolean; onCh
       type="button"
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-brand-600' : 'bg-slate-300'}`}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${checked ? 'bg-brand-600' : 'bg-stone-300'}`}
     >
-      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? 'translate-x-[18px]' : 'translate-x-[3px]'}`} />
+      <span
+        className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out ${
+          checked ? 'translate-x-4' : 'translate-x-0.5'
+        }`}
+      />
     </button>
   );
 }
@@ -75,7 +85,7 @@ export function Toggle({ checked, onChange, disabled }: { checked: boolean; onCh
 
 export function Badge({ children, tone = 'slate' }: { children: React.ReactNode; tone?: 'slate' | 'green' | 'red' | 'indigo' | 'amber' | 'emerald' }) {
   const tones = {
-    slate: 'bg-slate-100 text-slate-600 border-slate-200',
+    slate: 'bg-stone-100 text-stone-600 border-stone-200',
     green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     red: 'bg-red-50 text-red-700 border-red-200',
@@ -89,7 +99,7 @@ export function Badge({ children, tone = 'slate' }: { children: React.ReactNode;
 
 export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}>
+    <div className={`rounded-xl border border-stone-200 bg-white shadow-sm ${className}`}>
       {children}
     </div>
   );
@@ -112,16 +122,16 @@ export function StatCard({
     brand: 'text-brand-600 bg-brand-50',
     green: 'text-emerald-600 bg-emerald-50',
     amber: 'text-amber-600 bg-amber-50',
-    slate: 'text-slate-500 bg-slate-100',
+    slate: 'text-stone-500 bg-stone-100',
   };
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 flex items-center gap-3.5">
+    <div className="rounded-xl border border-stone-200 bg-white shadow-sm p-4 flex items-center gap-3.5">
       <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${accents[accent]}`}>
         {icon}
       </div>
       <div>
-        <div className="text-2xl font-semibold text-slate-800 tracking-tight">{value}</div>
-        <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+        <div className="text-2xl font-semibold text-stone-800 tracking-tight">{value}</div>
+        <div className="text-xs text-stone-500 mt-0.5">{label}</div>
       </div>
     </div>
   );
@@ -162,12 +172,12 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 backdrop-blur-sm p-4 pt-[10vh] animate-fade-in" onClick={onClose}>
       <div
-        className="w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xl animate-scale-in"
+        className="w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl border border-stone-200 bg-white shadow-xl animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-          <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">
+          <h3 className="text-base font-semibold text-stone-800">{title}</h3>
+          <button onClick={onClose} className="rounded-lg p-1 text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer">
             <X size={16} />
           </button>
         </div>
@@ -184,11 +194,11 @@ export function Modal({
 export function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-      <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-slate-100 text-slate-400 mb-3">
+      <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-stone-100 text-stone-400 mb-3">
         {icon}
       </div>
-      <div className="text-sm font-medium text-slate-500">{title}</div>
-      {description && <div className="text-xs text-slate-400 mt-1 max-w-[28ch]">{description}</div>}
+      <div className="text-sm font-medium text-stone-500">{title}</div>
+      {description && <div className="text-xs text-stone-400 mt-1 max-w-[28ch]">{description}</div>}
     </div>
   );
 }
@@ -240,7 +250,7 @@ export function CopyButton({
       type="button"
       onClick={onCopy}
       title={label || t('common.copy')}
-      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ${className}`}
+      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-stone-500 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer ${className}`}
     >
       {copied ? <Check size={size} className="text-emerald-500" /> : <Copy size={size} />}
       {label && <span>{copied ? t('common.copied') : label}</span>}

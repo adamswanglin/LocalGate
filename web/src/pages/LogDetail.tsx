@@ -51,14 +51,14 @@ export default function LogDetailPage() {
       </div>
     </div>
   );
-  if (!log) return <div className="p-6 text-slate-400">{t('detail.notFound')}</div>;
+  if (!log) return <div className="p-6 text-stone-400">{t('detail.notFound')}</div>;
 
   return (
     <div className="p-6 max-w-5xl animate-fade-in">
       <Button variant="ghost" size="sm" onClick={() => navigate('/logs')} className="mb-4"><ArrowLeft size={14} /> {t('detail.back')}</Button>
 
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-lg font-semibold text-slate-800 tracking-tight">{t('detail.title', { id: log.id })}</h1>
+        <h1 className="text-lg font-semibold text-stone-800 tracking-tight">{t('detail.title', { id: log.id })}</h1>
         <button
           onClick={async () => {
             const next = !log.starred;
@@ -67,7 +67,7 @@ export default function LogDetailPage() {
             catch { setLog({ ...log, starred: !next }); }
           }}
           title={log.starred ? t('logs.starOn') : t('logs.starOff')}
-          className={`cursor-pointer transition-colors ${log.starred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}
+          className={`cursor-pointer transition-colors ${log.starred ? 'text-amber-500' : 'text-stone-300 hover:text-amber-400'}`}
         >
           <Star size={18} className={log.starred ? 'fill-amber-400' : ''} />
         </button>
@@ -76,7 +76,7 @@ export default function LogDetailPage() {
           : log.statusCode != null && log.statusCode < 400 ? <Badge tone="green">{log.statusCode}</Badge>
           : log.statusCode != null ? <Badge tone="red">{log.statusCode}</Badge> : null}
         {log.isStream && <Badge tone="amber">stream</Badge>}
-        <div className="ml-auto inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+        <div className="ml-auto inline-flex items-center rounded-lg border border-stone-200 bg-white p-0.5 shadow-sm">
           <ToggleBtn active={formatted} onClick={() => setFormatted(true)} icon={<FileText size={13} />} label={t('detail.viewFormatted')} />
           <ToggleBtn active={!formatted} onClick={() => setFormatted(false)} icon={<Braces size={13} />} label={t('detail.viewRaw')} />
         </div>
@@ -91,11 +91,11 @@ export default function LogDetailPage() {
         <Field label={t('detail.metaTime')}>{fmtDate(log.createdAt)}</Field>
         <Field label={t('detail.metaReqLog')}>{log.requestBody ? t('common.yes') : t('common.no')}</Field>
         <Field label={t('detail.metaResLog')}>{log.responseBody ? t('common.yes') : t('common.no')}</Field>
-        {log.usage && <Field label={t('detail.metaTokens')}><pre className="text-xs text-slate-500 whitespace-pre-wrap">{JSON.stringify(log.usage)}</pre></Field>}
+        {log.usage && <Field label={t('detail.metaTokens')}><pre className="text-xs text-stone-500 whitespace-pre-wrap">{JSON.stringify(log.usage)}</pre></Field>}
         <Field label={t('detail.metaCost')}>
           {log.totalCost != null ? (
-            <span className="font-mono text-xs text-violet-600 font-medium">{fmtMoney(log.totalCost)}</span>
-          ) : <span className="text-slate-300">-</span>}
+            <span className="font-mono text-xs text-brand-700 font-medium">{fmtMoney(log.totalCost)}</span>
+          ) : <span className="text-stone-300">-</span>}
         </Field>
         {log.error && <div className="col-span-full"><Field label={t('detail.metaError')}><pre className="text-xs text-red-700 whitespace-pre-wrap bg-red-50 rounded-lg p-3 border border-red-200">{log.error}</pre></Field></div>}
       </Card>
@@ -122,15 +122,15 @@ export default function LogDetailPage() {
             log.isStream ? (
               <div className="space-y-3">
                 {log.responseChunks ? (
-                  <details className="rounded-xl bg-slate-50 border border-slate-200">
-                    <summary className="px-3 py-2.5 text-xs text-slate-500 cursor-pointer hover:text-slate-700">{t('detail.chunksTitle', { n: chunkArr.length })}</summary>
+                  <details className="rounded-xl bg-stone-50 border border-stone-200">
+                    <summary className="px-3 py-2.5 text-xs text-stone-500 cursor-pointer hover:text-stone-700">{t('detail.chunksTitle', { n: chunkArr.length })}</summary>
                     <pre className="px-3 pb-3 text-xs text-emerald-700 overflow-auto max-h-96">{prettyJson(log.responseChunks)}</pre>
                   </details>
-                ) : <p className="text-xs text-slate-400 px-1">{t('detail.chunksDisabled')}</p>}
+                ) : <p className="text-xs text-stone-400 px-1">{t('detail.chunksDisabled')}</p>}
                 {log.responseBody && (
-                  <details className="rounded-xl bg-slate-50 border border-slate-200">
-                    <summary className="px-3 py-2.5 text-xs text-slate-500 cursor-pointer hover:text-slate-700">{t('detail.rawSse')}</summary>
-                    <pre className="px-3 pb-3 text-xs text-slate-600 overflow-auto max-h-80 whitespace-pre-wrap">{log.responseBody}</pre>
+                  <details className="rounded-xl bg-stone-50 border border-stone-200">
+                    <summary className="px-3 py-2.5 text-xs text-stone-500 cursor-pointer hover:text-stone-700">{t('detail.rawSse')}</summary>
+                    <pre className="px-3 pb-3 text-xs text-stone-600 overflow-auto max-h-80 whitespace-pre-wrap">{log.responseBody}</pre>
                   </details>
                 )}
               </div>
@@ -167,7 +167,7 @@ function TagsEditor({ log, onChange }: { log: LogDetail; onChange: (tags: string
   return (
     <Card className="p-3 mb-4">
       <div className="flex items-start gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 pt-1.5 shrink-0"><TagIcon size={13} /> {t('detail.tagsLabel')}</div>
+        <div className="flex items-center gap-1.5 text-xs text-stone-400 pt-1.5 shrink-0"><TagIcon size={13} /> {t('detail.tagsLabel')}</div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             {tags.map((t) => (
@@ -183,14 +183,14 @@ function TagsEditor({ log, onChange }: { log: LogDetail; onChange: (tags: string
               }}
               placeholder={tags.length ? t('detail.tagsPlaceholder') : t('detail.tagsPlaceholder2')}
               list="log-tag-suggestions"
-              className="flex-1 min-w-[8rem] bg-transparent text-xs text-slate-700 placeholder-slate-400 focus:outline-none py-1"
+              className="flex-1 min-w-[8rem] bg-transparent text-xs text-stone-700 placeholder-stone-400 focus:outline-none py-1"
             />
-            {saving && <span className="text-[10px] text-slate-400">{t('detail.tagsSaving')}</span>}
+            {saving && <span className="text-[10px] text-stone-400">{t('detail.tagsSaving')}</span>}
           </div>
           {suggestions.length > 0 && input && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {suggestions.map((s) => (
-                <button key={s} onClick={() => add(s)} className="inline-flex items-center gap-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 text-[11px] cursor-pointer">
+                <button key={s} onClick={() => add(s)} className="inline-flex items-center gap-1 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-600 px-1.5 py-0.5 text-[11px] cursor-pointer">
                   <TagIcon size={9} /> {s}
                 </button>
               ))}
@@ -211,18 +211,18 @@ function FormattedRequest({ req, protocol }: { req: any; protocol: Protocol }) {
   return (
     <div className="space-y-3">
       {meta.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
             {meta.map((m) => (
-              <span key={m.k}><span className="text-slate-400">{m.k}:</span> <span className="text-slate-600 font-mono">{m.v}</span></span>
+              <span key={m.k}><span className="text-stone-400">{m.k}:</span> <span className="text-stone-600 font-mono">{m.v}</span></span>
             ))}
           </div>
         </div>
       )}
       <div className="space-y-2.5">
-        {msgs.length === 0 && <p className="text-xs text-slate-400 px-1">{t('detail.noMessages')}</p>}
+        {msgs.length === 0 && <p className="text-xs text-stone-400 px-1">{t('detail.noMessages')}</p>}
         {msgs.map((m, i) => (
-          <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div key={i} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
             <div className="mb-1.5"><Badge tone={ROLE_TONE[m.role] || 'slate'}>{m.role}</Badge></div>
             <MarkdownView>{m.text}</MarkdownView>
           </div>
@@ -239,20 +239,20 @@ function FormattedResponse({
   rawBody: string | null; rawChunks: string | null; text: string;
 }) {
   if (!text.trim()) {
-    return <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-400">{t('detail.noText')}</div>;
+    return <div className="rounded-xl bg-stone-50 border border-stone-200 p-3 text-xs text-stone-400">{t('detail.noText')}</div>;
   }
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
         <div className="mb-1.5"><Badge tone="emerald">assistant</Badge></div>
         <MarkdownView>{text}</MarkdownView>
       </div>
       {isStream && (
-        <details className="rounded-xl bg-slate-50 border border-slate-200">
-          <summary className="px-3 py-2.5 text-xs text-slate-500 cursor-pointer hover:text-slate-700">{t('detail.rawStream')}</summary>
+        <details className="rounded-xl bg-stone-50 border border-stone-200">
+          <summary className="px-3 py-2.5 text-xs text-stone-500 cursor-pointer hover:text-stone-700">{t('detail.rawStream')}</summary>
           <div className="px-3 pb-3 space-y-2">
             {rawChunks && <pre className="text-xs text-emerald-700 overflow-auto max-h-72">{prettyJson(rawChunks)}</pre>}
-            {rawBody && <pre className="text-xs text-slate-600 overflow-auto max-h-72 whitespace-pre-wrap">{rawBody}</pre>}
+            {rawBody && <pre className="text-xs text-stone-600 overflow-auto max-h-72 whitespace-pre-wrap">{rawBody}</pre>}
           </div>
         </details>
       )}
@@ -262,7 +262,7 @@ function FormattedResponse({
 
 function MarkdownView({ children }: { children: string }) {
   return (
-    <div className="prose-invert-logs text-sm text-slate-700 leading-relaxed break-words">
+    <div className="prose-invert-logs text-sm text-stone-700 leading-relaxed break-words">
       <ReactMarkdown remarkPlugins={[remarkGfm]}
         components={{
           code: ({ className, children: c, ...rest }: any) => {
@@ -271,19 +271,19 @@ function MarkdownView({ children }: { children: string }) {
             if (isBlock) {
               const lang = hasLang ? className.replace('language-', '') : '';
               return (
-                <div className="my-2 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
-                  {lang && <div className="px-3 py-1 text-[10px] text-slate-400 bg-slate-100/80 border-b border-slate-200 font-mono uppercase tracking-wide">{lang}</div>}
-                  <pre className="overflow-auto p-3 text-xs text-slate-700"><code className={className} {...rest}>{c}</code></pre>
+                <div className="my-2 rounded-xl border border-stone-200 bg-stone-50 overflow-hidden">
+                  {lang && <div className="px-3 py-1 text-[10px] text-stone-400 bg-stone-100/80 border-b border-stone-200 font-mono uppercase tracking-wide">{lang}</div>}
+                  <pre className="overflow-auto p-3 text-xs text-stone-700"><code className={className} {...rest}>{c}</code></pre>
                 </div>
               );
             }
-            return <code className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[0.85em] text-brand-700 font-mono" {...rest}>{c}</code>;
+            return <code className="rounded-md bg-stone-100 px-1.5 py-0.5 text-[0.85em] text-brand-700 font-mono" {...rest}>{c}</code>;
           },
           a: ({ ...rest }) => <a className="text-brand-600 underline hover:text-brand-500" target="_blank" rel="noreferrer" {...rest} />,
           table: ({ ...rest }) => <div className="my-2 overflow-auto"><table className="border-collapse text-xs w-full" {...rest} /></div>,
-          th: ({ ...rest }) => <th className="border border-slate-200 px-2.5 py-1.5 bg-slate-50 text-left font-medium text-slate-600" {...rest} />,
-          td: ({ ...rest }) => <td className="border border-slate-200 px-2.5 py-1.5" {...rest} />,
-          hr: ({ ...rest }) => <hr className="my-4 border-slate-200" {...rest} />,
+          th: ({ ...rest }) => <th className="border border-stone-200 px-2.5 py-1.5 bg-stone-50 text-left font-medium text-stone-600" {...rest} />,
+          td: ({ ...rest }) => <td className="border border-stone-200 px-2.5 py-1.5" {...rest} />,
+          hr: ({ ...rest }) => <hr className="my-4 border-stone-200" {...rest} />,
         }}
       >{children}</ReactMarkdown>
     </div>
@@ -294,21 +294,21 @@ function ToggleBtn({ active, onClick, icon, label }: { active: boolean; onClick:
   return (
     <button onClick={onClick}
       className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer ${
-        active ? 'bg-slate-100 text-slate-700' : 'text-slate-400 hover:text-slate-600'
+        active ? 'bg-stone-100 text-stone-700' : 'text-stone-400 hover:text-stone-600'
       }`}
     >{icon} {label}</button>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div><div className="text-xs text-slate-400 mb-0.5">{label}</div><div className="text-slate-700">{children}</div></div>;
+  return <div><div className="text-xs text-stone-400 mb-0.5">{label}</div><div className="text-stone-700">{children}</div></div>;
 }
 
 function Section({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">{title}</div>
+        <div className="text-xs font-medium text-stone-400 uppercase tracking-wide">{title}</div>
         {actions}
       </div>
       {children}
@@ -317,11 +317,11 @@ function Section({ title, actions, children }: { title: string; actions?: React.
 }
 
 function CodeBlock({ text, hint }: { text: string; hint?: string }) {
-  if (!text) return <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-300">{t('detail.emptyCode')}</div>;
+  if (!text) return <div className="rounded-xl bg-stone-50 border border-stone-200 p-3 text-xs text-stone-300">{t('detail.emptyCode')}</div>;
   return (
     <div>
-      {hint && <div className="text-[11px] text-slate-400 mb-1">{hint}</div>}
-      <pre className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-700 overflow-auto max-h-[28rem] whitespace-pre-wrap">{text}</pre>
+      {hint && <div className="text-[11px] text-stone-400 mb-1">{hint}</div>}
+      <pre className="rounded-xl bg-stone-50 border border-stone-200 p-3 text-xs text-stone-700 overflow-auto max-h-[28rem] whitespace-pre-wrap">{text}</pre>
     </div>
   );
 }

@@ -32,19 +32,7 @@ LocalGate 用一个本地网关解决所有问题。你的应用只需对接 Loc
 
 ## 快速开始
 
-### 作为服务运行
-
-```bash
-git clone https://github.com/your-username/localgate.git
-cd localgate
-pnpm install
-./start.sh          # 前台运行（Ctrl+C 停止）
-./start.sh -d       # 后台运行
-```
-
-浏览器打开 `http://localhost:8787` 即可进入管理面板。
-
-### 作为桌面应用运行
+### 下载桌面应用
 
 前往 [GitHub Releases](../../releases) 下载最新版：
 
@@ -61,11 +49,25 @@ pnpm run build
 make run
 ```
 
+### 作为服务运行
+
+```bash
+git clone https://github.com/your-username/localgate.git
+cd localgate
+pnpm install
+./start.sh          # 前台运行（Ctrl+C 停止）
+./start.sh -d       # 后台运行
+```
+
+浏览器打开 `http://localhost:8787` 即可进入管理面板。
+
 ## 使用指南
 
 ### 第一步：添加上游源
 
 进入 **上游源** → **新增源**，配置一个 AI 服务商：
+
+![上游源](examples/sources.jpg)
 
 - **名称**：便于识别的标签（如 "OpenAI 官方"、"本地 Ollama"）
 - **API Key**：服务商的密钥（同一源的所有协议地址共用）
@@ -89,6 +91,8 @@ make run
 ### 第二步：创建模型入口
 
 进入 **模型入口** → **新增入口**，创建一个虚拟 API 入口：
+
+![模型入口](examples/model_entry.jpg)
 
 - **对外模型名**：客户端请求中使用的名称（如 `gpt-4o`、`my-model`）
 - **入站协议**：接受哪种 API 格式（`openai_chat`、`openai_response` 或 `anthropic`）
@@ -161,6 +165,8 @@ const response = await client.chat.completions.create({
 
 ### 调用日志与调试
 
+![调用日志](examples/calllogs.jpg)
+
 每次代理请求都会自动记录：
 
 - 完整的请求和响应报文（含流式 SSE 内容）
@@ -171,6 +177,8 @@ const response = await client.chat.completions.create({
 你可以**收藏**重要日志、**打标签**便于筛选，在详情页查看格式化或原始报文。
 
 ### 用量统计
+
+![用量统计](examples/statistics.jpg)
 
 管理面板提供多种统计视图：
 

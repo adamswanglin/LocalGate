@@ -27,6 +27,24 @@ export default function LogsPage() {
     } catch (e: any) { alert(e.message || t('logs.alertSaveFailed')); }
     setSavingSetting(false);
   }
+  const [capDraft, setCapDraft] = useState<string>('');
+  useEffect(() => { if (settings) setCapDraft(String(settings.logCap)); }, [settings?.logCap]);
+  async function commitCap() {
+    if (!settings) return;
+    const n = Math.floor(Number(capDraft));
+    if (!Number.isFinite(n) || n < 100 || n > 1000000) {
+      alert(t('logs.logCapHint'));
+      setCapDraft(String(settings.logCap));
+      return;
+    }
+    if (n === settings.logCap) return;
+    setSavingSetting(true);
+    try {
+      const updated = await api.settings.update({ logCap: n });
+      setSettings(updated);
+    } catch (e: any) { alert(e.message || t('logs.alertSaveFailed')); }
+    setSavingSetting(false);
+  }
 
   async function load() {
     setLoading(true);
@@ -72,22 +90,37 @@ export default function LogsPage() {
     <div className="p-6 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800 tracking-tight">{t('logs.title')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{t('logs.total', { total })}</p>
+          <h1 className="text-xl font-semibold text-stone-800 tracking-tight">{t('logs.title')}</h1>
+          <p className="text-sm text-stone-500 mt-1">{t('logs.total', { total })}</p>
         </div>
         <Button variant="danger" size="sm" onClick={clearAll}><Trash2 size={14} /> {t('logs.clear')}</Button>
       </div>
 
       {/* 全局日志配置 */}
       <Card className="flex items-center gap-6 px-4 py-3 mb-6">
-        <div className="flex items-center gap-2 text-slate-500"><Cog size={15} /><span className="text-xs font-medium uppercase tracking-wider">{t('logs.globalConfig')}</span></div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <div className="flex items-center gap-2 text-stone-500"><Cog size={15} /><span className="text-xs font-medium uppercase tracking-wider">{t('logs.globalConfig')}</span></div>
+        <label className="flex items-center gap-2 text-sm text-stone-600">
           <Toggle disabled={!settings || savingSetting} checked={!!settings?.logIo} onChange={(v) => toggleSetting('logIo', v)} /> {t('logs.logIo')}
         </label>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-stone-600">
           <Toggle disabled={!settings || savingSetting} checked={!!settings?.logStreamBody} onChange={(v) => toggleSetting('logStreamBody', v)} /> {t('logs.logStreamBody')}
         </label>
-        {!settings && <span className="text-xs text-slate-400">{t('common.loading')}</span>}
+        <label className="flex items-center gap-2 text-sm text-stone-600" title={t('logs.logCapHint')}>
+          <span className="whitespace-nowrap">{t('logs.logCap')}</span>
+          <Input
+            type="number"
+            min={100}
+            max={1000000}
+            step={100}
+            className="w-28"
+            disabled={!settings || savingSetting}
+            value={capDraft}
+            onChange={(e) => setCapDraft(e.target.value)}
+            onBlur={commitCap}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          />
+        </label>
+        {!settings && <span className="text-xs text-stone-400">{t('common.loading')}</span>}
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-6">
@@ -109,11 +142,11 @@ export default function LogsPage() {
           <option value="ok">{t('logs.filterOk')}</option>
           <option value="error">{t('logs.filterError')}</option>
         </Select>
-        <Input placeholder="Entry ID" value={f.channelId} onChange={(e) => setF({ ...f, channelId: e.target.value })} className="w-36" />
+        <Input placeholder={t('logs.placeholderEntryId')} value={f.channelId} onChange={(e) => setF({ ...f, channelId: e.target.value })} className="w-36" />
         <button
           onClick={() => setF({ ...f, starred: !f.starred })}
           className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs transition-colors cursor-pointer ${
-            f.starred ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-white text-slate-600 hover:text-slate-800'
+            f.starred ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:text-stone-800'
           }`}
         >
           <Star size={13} className={f.starred ? 'fill-amber-400 text-amber-500' : ''} /> {t('logs.filterStarred')}
@@ -121,10 +154,10 @@ export default function LogsPage() {
         <TagFilterPicker allTags={allTags} selected={f.tags} onToggle={toggleTag} onClear={() => setF({ ...f, tags: [] })} />
         <div className="flex items-center gap-1.5">
           <input type="datetime-local" value={f.dateFrom} onChange={(e) => setF({ ...f, dateFrom: e.target.value })}
-            className="rounded-lg bg-white border border-slate-200 px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
-          <span className="text-slate-400 text-xs">~</span>
+            className="rounded-lg bg-white border border-stone-200 px-2.5 py-2 text-xs text-stone-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+          <span className="text-stone-400 text-xs">~</span>
           <input type="datetime-local" value={f.dateTo} onChange={(e) => setF({ ...f, dateTo: e.target.value })}
-            className="rounded-lg bg-white border border-slate-200 px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+            className="rounded-lg bg-white border border-stone-200 px-2.5 py-2 text-xs text-stone-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
         </div>
         {hasFilter && (
           <Button size="sm" variant="ghost" onClick={() => setF({ protocol: '', status: '', channelId: '', tags: [], starred: false, dateFrom: '', dateTo: '' })}>
@@ -135,7 +168,7 @@ export default function LogsPage() {
 
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs">
+          <thead className="bg-stone-50 text-stone-500 text-xs">
             <tr>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colTime')}</th>
               <th className="text-left px-4 py-3 font-medium">{t('logs.colStar')}</th>
@@ -149,42 +182,42 @@ export default function LogsPage() {
               <th className="text-left px-4 py-3 font-medium">{t('logs.colTokens')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-stone-100">
             {loading && Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} cols={10} />)}
             {!loading && rows.length === 0 && (
               <tr><td colSpan={10}><EmptyState icon={<ScrollText size={24} />} title={t('logs.empty')} description={t('logs.emptyDesc')} /></td></tr>
             )}
             {rows.map((l) => (
-              <tr key={l.id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => navigate(`/logs/${l.id}`)}>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{fmtDate(l.createdAt)}</td>
+              <tr key={l.id} className="hover:bg-stone-50 cursor-pointer transition-colors" onClick={() => navigate(`/logs/${l.id}`)}>
+                <td className="px-4 py-3 text-stone-500 whitespace-nowrap text-xs">{fmtDate(l.createdAt)}</td>
                 <td className="px-4 py-3">
                   <button onClick={(e) => toggleStar(l, e)} title={l.starred ? t('logs.starOn') : t('logs.starOff')}
-                    className={`cursor-pointer transition-colors ${l.starred ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}>
+                    className={`cursor-pointer transition-colors ${l.starred ? 'text-amber-500' : 'text-stone-300 hover:text-amber-400'}`}>
                     <Star size={15} className={l.starred ? 'fill-amber-400' : ''} />
                   </button>
                 </td>
-                <td className="px-4 py-3 text-slate-700 font-medium">{l.channelName || `#${l.channelId}`}</td>
+                <td className="px-4 py-3 text-stone-700 font-medium">{l.channelName || `#${l.channelId}`}</td>
                 <td className="px-4 py-3"><Badge tone="indigo">{l.protocol}</Badge></td>
-                <td className="px-4 py-3 text-slate-500 font-mono text-xs">{l.model || '-'}</td>
+                <td className="px-4 py-3 text-stone-500 font-mono text-xs">{l.model || '-'}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1 max-w-[14rem]">
                     {(l.tags || []).map((t) => (
-                      <span key={t} className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 text-slate-600 px-1.5 py-0.5 text-[10px]">
+                      <span key={t} className="inline-flex items-center gap-0.5 rounded-md bg-stone-100 text-stone-600 px-1.5 py-0.5 text-[10px]">
                         <TagIcon size={9} />{t}
                       </span>
                     ))}
-                    {(!l.tags || l.tags.length === 0) && <span className="text-slate-300 text-xs">-</span>}
+                    {(!l.tags || l.tags.length === 0) && <span className="text-stone-300 text-xs">-</span>}
                   </div>
                 </td>
-                <td className="px-4 py-3">{l.isStream ? <Badge tone="amber">stream</Badge> : <span className="text-slate-300 text-xs">-</span>}</td>
+                <td className="px-4 py-3">{l.isStream ? <Badge tone="amber">stream</Badge> : <span className="text-stone-300 text-xs">-</span>}</td>
                 <td className="px-4 py-3">
                   {l.aborted ? <Badge tone="amber">aborted</Badge>
                     : l.statusCode == null ? <Badge tone="slate">-</Badge>
                     : l.statusCode < 400 ? <Badge tone="green">{l.statusCode}</Badge>
                     : <Badge tone="red">{l.statusCode}</Badge>}
                 </td>
-                <td className="px-4 py-3 text-slate-500 text-xs tabular-nums">{l.latencyMs != null ? `${l.latencyMs}ms` : '-'}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs tabular-nums">{tok(l)}</td>
+                <td className="px-4 py-3 text-stone-500 text-xs tabular-nums">{l.latencyMs != null ? `${l.latencyMs}ms` : '-'}</td>
+                <td className="px-4 py-3 text-stone-500 text-xs tabular-nums">{tok(l)}</td>
               </tr>
             ))}
           </tbody>
@@ -192,7 +225,7 @@ export default function LogsPage() {
       </Card>
 
       <div className="flex items-center justify-between mt-4">
-        <span className="text-xs text-slate-400 tabular-nums">{total ? `${offset + 1}–${Math.min(offset + PAGE, total)}` : '0'} / {total}</span>
+        <span className="text-xs text-stone-400 tabular-nums">{total ? `${offset + 1}–${Math.min(offset + PAGE, total)}` : '0'} / {total}</span>
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}><ChevronLeft size={14} /> {t('logs.prev')}</Button>
           <Button size="sm" variant="ghost" disabled={offset + PAGE >= total} onClick={() => setOffset(offset + PAGE)}>{t('logs.next')} <ChevronRight size={14} /></Button>
@@ -226,7 +259,7 @@ function TagFilterPicker({
       <button
         onClick={() => setOpen((v) => !v)}
         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs transition-colors cursor-pointer ${
-          selected.length ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-slate-200 bg-white text-slate-600 hover:text-slate-800'
+          selected.length ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-stone-200 bg-white text-stone-600 hover:text-stone-800'
         }`}
       >
         <Filter size={13} /> {t('logs.tagsLabel')} {selected.length > 0 && <span className="rounded-md bg-brand-600 px-1.5 text-[10px] text-white">{selected.length}</span>}
@@ -242,22 +275,22 @@ function TagFilterPicker({
         </div>
       )}
       {open && (
-        <div className="absolute z-30 mt-1 w-56 rounded-xl border border-slate-200 bg-white shadow-lg p-2 animate-scale-in">
+        <div className="absolute z-30 mt-1 w-56 rounded-xl border border-stone-200 bg-white shadow-lg p-2 animate-scale-in">
           <div className="flex items-center justify-between px-1 pb-1.5">
-            <span className="text-[11px] text-slate-400">{t('logs.tagsPick')}</span>
-            {selected.length > 0 && <button onClick={onClear} className="text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer">{t('logs.tagsClear')}</button>}
+            <span className="text-[11px] text-stone-400">{t('logs.tagsPick')}</span>
+            {selected.length > 0 && <button onClick={onClear} className="text-[11px] text-stone-500 hover:text-stone-700 cursor-pointer">{t('logs.tagsClear')}</button>}
           </div>
           <div className="max-h-60 overflow-auto">
-            {allTags.length === 0 && <div className="px-2 py-3 text-xs text-slate-400 text-center">{t('logs.tagsNone')}</div>}
+            {allTags.length === 0 && <div className="px-2 py-3 text-xs text-stone-400 text-center">{t('logs.tagsNone')}</div>}
             {allTags.map((t) => {
               const active = selected.includes(t.name);
               return (
                 <button key={t.name} onClick={() => onToggle(t.name)}
                   className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs transition-colors cursor-pointer ${
-                    active ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50'
+                    active ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-50'
                   }`}>
                   <span className="inline-flex items-center gap-1.5"><TagIcon size={11} /> {t.name}</span>
-                  <span className="text-[10px] text-slate-400">{t.count}</span>
+                  <span className="text-[10px] text-stone-400">{t.count}</span>
                 </button>
               );
             })}

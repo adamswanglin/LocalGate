@@ -95,7 +95,8 @@ const DDL = [
   `CREATE TABLE IF NOT EXISTS t_proxy_settings (
      id INTEGER PRIMARY KEY,
      log_io INTEGER NOT NULL DEFAULT 1,
-     log_stream_body INTEGER NOT NULL DEFAULT 1
+     log_stream_body INTEGER NOT NULL DEFAULT 1,
+     log_cap INTEGER NOT NULL DEFAULT 10000
    )`,
 ];
 
@@ -110,6 +111,7 @@ const ADD_COLUMN: Array<[table: string, col: string, def: string]> = [
   ['t_proxy_call_logs', 'output_cost', 'REAL'],
   ['t_proxy_call_logs', 'total_cost', 'REAL'],
   ['t_proxy_channels', 'active_binding_id', 'INTEGER'],
+  ['t_proxy_settings', 'log_cap', 'INTEGER NOT NULL DEFAULT 10000'],
 ];
 
 /**
@@ -195,5 +197,5 @@ export function initSchema(sqlite: BetterSqlite3Db) {
   backfillLegacyChannels(sqlite);
 
   // 种子全局配置行
-  sqlite.exec(`INSERT OR IGNORE INTO t_proxy_settings (id, log_io, log_stream_body) VALUES (1, 1, 1)`);
+  sqlite.exec(`INSERT OR IGNORE INTO t_proxy_settings (id, log_io, log_stream_body, log_cap) VALUES (1, 1, 1, 10000)`);
 }

@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import { networkInterfaces } from 'node:os';
 import { Protocol, PROTOCOLS } from '../lib/protocol.js';
 import { invalidateSettingsCache, invalidateTokensCache } from './proxy.js';
+import { MIN_LOG_CAP, MAX_LOG_CAP } from '../lib/log-retention.js';
 
 const admin = new Hono();
 
@@ -313,6 +314,7 @@ admin.get('/api/settings', async (c) => {
   return c.json({
     logIo: s ? !!s.logIo : true,
     logStreamBody: s ? !!s.logStreamBody : true,
+    logCap: s ? s.logCap : 10000,
   });
 });
 
@@ -321,6 +323,11 @@ admin.patch('/api/settings', async (c) => {
   const update: any = {};
   if (typeof body.logIo === 'boolean') update.logIo = body.logIo ? 1 : 0;
   if (typeof body.logStreamBody === 'boolean') update.logStreamBody = body.logStreamBody ? 1 : 0;
+  if (typeof body.logCap === 'number') {
+    // 钳制到合法区间，非法值忽略
+    const cap = Math.floor(body.logCap);
+    if (Number.isFinite(cap) && cap >= MIN_LOG_CAP && cap <= MAX_LOG_CAP) update.logCap = cap;
+  }
   if (Object.keys(update).length) {
     await db.update(schema.settings).set(update).where(eq(schema.settings.id, 1));
     invalidateSettingsCache();
@@ -329,6 +336,7 @@ admin.patch('/api/settings', async (c) => {
   return c.json({
     logIo: s ? !!s.logIo : true,
     logStreamBody: s ? !!s.logStreamBody : true,
+    logCap: s ? s.logCap : 10000,
   });
 });
 

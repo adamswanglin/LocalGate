@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
-import { Plug, KeyRound, ScrollText, BarChart3, ExternalLink, Download, RefreshCw, X } from 'lucide-react';
+import { Plug, KeyRound, ScrollText, BarChart3, ExternalLink, Download, RefreshCw, X, Github } from 'lucide-react';
 import { t } from './lib/i18n.js';
+import { useI18n } from './lib/i18n-provider.js';
+import LanguageSwitcher from './components/LanguageSwitcher.js';
 import SourcesPage from './pages/Sources.js';
 import ModelEntriesPage from './pages/ModelEntries.js';
 import LogsPage from './pages/Logs.js';
@@ -27,6 +29,7 @@ type UpdateState =
   | { status: 'downloaded' };
 
 export default function App() {
+  const { locale } = useI18n();
   const [update, setUpdate] = useState<UpdateState>({ status: 'idle' });
 
   useEffect(() => {
@@ -72,14 +75,14 @@ export default function App() {
 
       <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
-        <aside className="w-60 shrink-0 bg-white border-r border-slate-200 flex flex-col">
+        <aside className="w-60 shrink-0 bg-white border-r border-stone-200 flex flex-col">
           {/* Brand */}
-          <div className="px-5 py-5 border-b border-slate-100">
+          <div className="px-5 py-5 border-b border-stone-100">
             <div className="flex items-center gap-2.5">
               <img src="/favicon.svg" alt="" className="w-8 h-8 rounded-lg" />
               <div>
-                <div className="text-sm font-semibold text-slate-800 tracking-tight">{t('app.name')}</div>
-                <div className="text-[11px] text-slate-400">{t('app.tagline')}</div>
+                <div className="text-sm font-semibold text-stone-800 tracking-tight">{t('app.name')}</div>
+                <div className="text-[11px] text-stone-400">{t('app.tagline')}</div>
               </div>
             </div>
           </div>
@@ -93,13 +96,13 @@ export default function App() {
                     className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 cursor-pointer no-underline ${
                       isActive
                         ? 'bg-brand-50 text-brand-700'
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        : 'text-stone-500 hover:bg-stone-50 hover:text-stone-700'
                     }`}
                   >
                     <n.icon size={17} strokeWidth={1.75} />
                     <div className="min-w-0">
                       <div className="text-sm font-medium">{t(n.label)}</div>
-                      <div className={`text-[11px] truncate ${isActive ? 'text-brand-500' : 'text-slate-400 group-hover:text-slate-400'}`}>{t(n.desc)}</div>
+                      <div className={`text-[11px] truncate ${isActive ? 'text-brand-500' : 'text-stone-400 group-hover:text-stone-400'}`}>{t(n.desc)}</div>
                     </div>
                   </div>
                 )}
@@ -108,38 +111,41 @@ export default function App() {
           </nav>
 
           {/* Footer */}
-          <div className="px-4 py-3 border-t border-slate-100 space-y-2">
+          <div className="px-4 py-3 border-t border-stone-100 space-y-2">
             <div className="flex items-center justify-between">
               <a
                 href="https://github.com/adamswanglin/LocalGate"
                 target="_blank"
                 rel="noreferrer"
-                className="group flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-brand-600 transition-colors no-underline"
+                className="group flex items-center text-stone-400 hover:text-brand-600 transition-colors no-underline"
+                title="github.com/adamswanglin/LocalGate"
               >
-                <ExternalLink size={12} />
-                <span className="font-mono">github.com/adamswanglin/LocalGate</span>
+                <Github size={16} />
               </a>
-              {isElectron && (
-                <button
-                  onClick={handleCheckUpdate}
-                  className="group flex items-center gap-1 text-[11px] text-slate-400 hover:text-brand-600 transition-colors no-underline bg-transparent border-0 cursor-pointer p-0"
-                  title={t('update.checking')}
-                >
-                  <RefreshCw size={12} />
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                <LanguageSwitcher />
+                {isElectron && (
+                  <button
+                    onClick={handleCheckUpdate}
+                    className="group flex items-center gap-1 text-[11px] text-stone-400 hover:text-brand-600 transition-colors no-underline bg-transparent border-0 cursor-pointer p-0"
+                    title={t('update.checking')}
+                  >
+                    <RefreshCw size={12} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto bg-slate-50/50 flex flex-col">
+        <main className="flex-1 overflow-auto bg-stone-50/50 flex flex-col">
           {/* Update banner */}
           {isElectron && update.status !== 'idle' && (
             <UpdateBanner state={update} onDownload={handleDownload} onInstall={handleInstall} onDismiss={() => setUpdate({ status: 'idle' })} />
           )}
           <div className="flex-1 overflow-auto">
-          <Routes>
+          <Routes key={locale}>
             <Route path="/" element={<Navigate to="/sources" replace />} />
             <Route path="/sources" element={<SourcesPage />} />
             <Route path="/model-entries" element={<ModelEntriesPage />} />

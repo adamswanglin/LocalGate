@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('appNative', {
   isElectron: true,
   platform: process.platform,
   version: process.env.npm_package_version || '',
+  // 操作系统首选语言列表（用于跟随系统语言；不受 Electron 打包 locale 影响）
+  systemLanguages: () => ipcRenderer.sendSync('get-system-languages'),
 });
 
 // 自动更新 API：前端通过 window.updateAPI 调用

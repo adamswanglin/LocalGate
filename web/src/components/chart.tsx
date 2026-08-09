@@ -15,7 +15,7 @@ interface Series {
   values: number[];
 }
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#14b8a6', '#f97316', '#64748b'];
+const COLORS = ['#d97757', '#3f8f7a', '#c2882e', '#b85c8a', '#5b7cbe', '#8a6d4f', '#c4453a', '#4aa0a5', '#9a7bbf', '#78716c'];
 
 /** 多系列折线图（适合按天/月的时间趋势） */
 export function LineChart({ labels, series, height = 260 }: { labels: string[]; series: Series[]; height?: number }) {
@@ -39,13 +39,13 @@ export function LineChart({ labels, series, height = 260 }: { labels: string[]; 
       {/* y 网格 */}
       {gridY.map((v, i) => (
         <g key={i}>
-          <line x1={pad.left} y1={yAt(v)} x2={w - pad.right} y2={yAt(v)} stroke="#f1f5f9" strokeWidth={1} />
-          <text x={pad.left - 8} y={yAt(v) + 3} textAnchor="end" className="fill-slate-400" fontSize={10}>{fmtNum(v)}</text>
+          <line x1={pad.left} y1={yAt(v)} x2={w - pad.right} y2={yAt(v)} stroke="#f4f2ee" strokeWidth={1} />
+          <text x={pad.left - 8} y={yAt(v) + 3} textAnchor="end" className="fill-stone-400" fontSize={10}>{fmtNum(v)}</text>
         </g>
       ))}
       {/* x 轴标签 */}
       {labels.map((lb, i) => (
-        i % xTickStride === 0 ? <text key={i} x={xAt(i)} y={h - pad.bottom + 16} textAnchor="middle" className="fill-slate-400" fontSize={10}>{lb}</text> : null
+        i % xTickStride === 0 ? <text key={i} x={xAt(i)} y={h - pad.bottom + 16} textAnchor="middle" className="fill-stone-400" fontSize={10}>{lb}</text> : null
       ))}
       {/* 折线 */}
       {series.map((s) => (
@@ -68,7 +68,7 @@ export function LineChart({ labels, series, height = 260 }: { labels: string[]; 
         />
       ))}
       {hover != null && (
-        <line x1={xAt(hover)} y1={pad.top} x2={xAt(hover)} y2={pad.top + innerH} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="3 3" />
+        <line x1={xAt(hover)} y1={pad.top} x2={xAt(hover)} y2={pad.top + innerH} stroke="#d6d2c8" strokeWidth={1} strokeDasharray="3 3" />
       )}
       {/* tooltip */}
       {hover != null && (() => {
@@ -77,12 +77,12 @@ export function LineChart({ labels, series, height = 260 }: { labels: string[]; 
         const ty = pad.top + 6;
         return (
           <g pointerEvents="none">
-            <rect x={tx} y={ty} width={tipW} height={tipH} rx={6} fill="white" stroke="#e2e8f0" />
-            <text x={tx + 8} y={ty + 13} className="fill-slate-500" fontSize={10} fontWeight={600}>{labels[hover]}</text>
+            <rect x={tx} y={ty} width={tipW} height={tipH} rx={6} fill="white" stroke="#e7e4dd" />
+            <text x={tx + 8} y={ty + 13} className="fill-stone-500" fontSize={10} fontWeight={600}>{labels[hover]}</text>
             {series.map((s, si) => (
               <g key={s.key}>
                 <circle cx={tx + 12} cy={ty + 26 + si * 14} r={3} fill={s.color} />
-                <text x={tx + 20} y={ty + 29 + si * 14} className="fill-slate-600" fontSize={10}>{s.label} {fmtNum(s.values[hover])}</text>
+                <text x={tx + 20} y={ty + 29 + si * 14} className="fill-stone-600" fontSize={10}>{s.label} {fmtNum(s.values[hover])}</text>
               </g>
             ))}
           </g>
@@ -112,8 +112,8 @@ export function BarChart({ labels, series, height = 260 }: { labels: string[]; s
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
       {gridY.map((v, i) => (
         <g key={i}>
-          <line x1={pad.left} y1={yAt(v)} x2={w - pad.right} y2={yAt(v)} stroke="#f1f5f9" strokeWidth={1} />
-          <text x={pad.left - 8} y={yAt(v) + 3} textAnchor="end" className="fill-slate-400" fontSize={10}>{fmtNum(v)}</text>
+          <line x1={pad.left} y1={yAt(v)} x2={w - pad.right} y2={yAt(v)} stroke="#f4f2ee" strokeWidth={1} />
+          <text x={pad.left - 8} y={yAt(v) + 3} textAnchor="end" className="fill-stone-400" fontSize={10}>{fmtNum(v)}</text>
         </g>
       ))}
       {labels.map((lb, i) => {
@@ -128,7 +128,7 @@ export function BarChart({ labels, series, height = 260 }: { labels: string[]; s
               const by = yAt(v);
               return <rect key={s.key} x={bx} y={by} width={barW} height={pad.top + innerH - by} fill={s.color} rx={2} opacity={hover == null || hover === i ? 1 : 0.4} />;
             })}
-            <text x={gx} y={h - pad.bottom + 16} textAnchor="middle" className="fill-slate-400" fontSize={10}>{lb.length > 14 ? lb.slice(0, 13) + '…' : lb}</text>
+            <text x={gx} y={h - pad.bottom + 16} textAnchor="middle" className="fill-stone-400" fontSize={10}>{lb.length > 14 ? lb.slice(0, 13) + '…' : lb}</text>
           </g>
         );
       })}
@@ -137,7 +137,7 @@ export function BarChart({ labels, series, height = 260 }: { labels: string[]; s
         {series.map((s, si) => (
           <g key={s.key} transform={`translate(${si * 110}, 0)`}>
             <rect width={10} height={10} rx={2} fill={s.color} />
-            <text x={15} y={9} className="fill-slate-500" fontSize={10}>{s.label}</text>
+            <text x={15} y={9} className="fill-stone-500" fontSize={10}>{s.label}</text>
           </g>
         ))}
       </g>
@@ -172,8 +172,8 @@ export function StackedBarChart({ labels, series, height = 300 }: { labels: stri
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
       {gridY.map((v, i) => (
         <g key={i}>
-          <line x1={pad.left} y1={yAt(v)} x2={w - pad.right} y2={yAt(v)} stroke="#f1f5f9" strokeWidth={1} />
-          <text x={pad.left - 8} y={yAt(v) + 3} textAnchor="end" className="fill-slate-400" fontSize={10}>{fmtNum(v)}</text>
+          <line x1={pad.left} y1={yAt(v)} x2={w - pad.right} y2={yAt(v)} stroke="#f4f2ee" strokeWidth={1} />
+          <text x={pad.left - 8} y={yAt(v) + 3} textAnchor="end" className="fill-stone-400" fontSize={10}>{fmtNum(v)}</text>
         </g>
       ))}
       {labels.map((lb, i) => {
@@ -198,7 +198,7 @@ export function StackedBarChart({ labels, series, height = 300 }: { labels: stri
               ) : null;
             })}
             {i % xTickStride === 0 && (
-              <text x={gx} y={h - pad.bottom + 16} textAnchor="middle" className="fill-slate-400" fontSize={10}>
+              <text x={gx} y={h - pad.bottom + 16} textAnchor="middle" className="fill-stone-400" fontSize={10}>
                 {String(lb).length > 14 ? String(lb).slice(0, 13) + '…' : String(lb)}
               </text>
             )}
@@ -214,12 +214,12 @@ export function StackedBarChart({ labels, series, height = 300 }: { labels: stri
         const total = totals[hover];
         return (
           <g pointerEvents="none">
-            <rect x={tx} y={ty} width={tipW} height={tipH} rx={6} fill="white" stroke="#e2e8f0" />
-            <text x={tx + 8} y={ty + 13} className="fill-slate-500" fontSize={10} fontWeight={600}>{labels[hover]} · {fmtNum(total)}</text>
+            <rect x={tx} y={ty} width={tipW} height={tipH} rx={6} fill="white" stroke="#e7e4dd" />
+            <text x={tx + 8} y={ty + 13} className="fill-stone-500" fontSize={10} fontWeight={600}>{labels[hover]} · {fmtNum(total)}</text>
             {shown.map((s, si) => (
               <g key={s.key}>
                 <circle cx={tx + 12} cy={ty + 26 + si * 14} r={3} fill={s.color} />
-                <text x={tx + 20} y={ty + 29 + si * 14} className="fill-slate-600" fontSize={10}>{s.label} {fmtNum(s.values[hover])}</text>
+                <text x={tx + 20} y={ty + 29 + si * 14} className="fill-stone-600" fontSize={10}>{s.label} {fmtNum(s.values[hover])}</text>
               </g>
             ))}
           </g>
@@ -230,7 +230,7 @@ export function StackedBarChart({ labels, series, height = 300 }: { labels: stri
         {series.slice(0, legendMax).map((s, si) => (
           <g key={s.key} transform={`translate(${(si % 6) * 120}, ${Math.floor(si / 6) * -14})`}>
             <rect width={10} height={10} rx={2} fill={s.color} />
-            <text x={15} y={9} className="fill-slate-500" fontSize={10}>{s.label.length > 12 ? s.label.slice(0, 11) + '…' : s.label}</text>
+            <text x={15} y={9} className="fill-stone-500" fontSize={10}>{s.label.length > 12 ? s.label.slice(0, 11) + '…' : s.label}</text>
           </g>
         ))}
       </g>

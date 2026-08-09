@@ -71,8 +71,8 @@ export default function StatsPage() {
     <div className="p-6 animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800 tracking-tight">{t('stats.title')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{t('stats.subtitle')}</p>
+          <h1 className="text-xl font-semibold text-stone-800 tracking-tight">{t('stats.title')}</h1>
+          <p className="text-sm text-stone-500 mt-1">{t('stats.subtitle')}</p>
         </div>
       </div>
 
@@ -82,28 +82,28 @@ export default function StatsPage() {
           label={t('stats.statInput')}
           value={loading ? '-' : totals.inputTokens}
           icon={<ArrowDownToLine size={18} />}
-          accent="#6366f1"
+          accent="#d97757"
           total={loading ? 0 : totals.inputTokens + totals.cachedInputTokens + totals.outputTokens}
         />
         <StatCardEnhanced
           label={t('stats.statCached')}
           value={loading ? '-' : totals.cachedInputTokens}
           icon={<Database size={18} />}
-          accent="#10b981"
+          accent="#3f8f7a"
           total={loading ? 0 : totals.inputTokens + totals.cachedInputTokens + totals.outputTokens}
         />
         <StatCardEnhanced
           label={t('stats.statOutput')}
           value={loading ? '-' : totals.outputTokens}
           icon={<ArrowUpFromLine size={18} />}
-          accent="#f59e0b"
+          accent="#c2882e"
           total={loading ? 0 : totals.inputTokens + totals.cachedInputTokens + totals.outputTokens}
         />
         <StatCardEnhanced
           label={t('stats.statCalls')}
           value={loading ? '-' : totals.calls}
           icon={<Hash size={18} />}
-          accent="#64748b"
+          accent="#8a8278"
           total={loading ? 0 : totals.calls}
           isCalls
         />
@@ -111,7 +111,7 @@ export default function StatsPage() {
           label={t('stats.statCost')}
           value={loading ? '-' : totals.cost}
           icon={<Coins size={18} />}
-          accent="#8b5cf6"
+          accent="#a1492d"
           total={loading ? 0 : totals.cost}
           money
         />
@@ -120,21 +120,21 @@ export default function StatsPage() {
       {/* 筛选 */}
       <Card className="p-4 mb-6">
         <div className="flex items-center gap-2 mb-3">
-          <Filter size={14} className="text-slate-400" />
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{t('stats.filterTitle')}</span>
+          <Filter size={14} className="text-stone-400" />
+          <span className="text-xs font-medium text-stone-500 uppercase tracking-wider">{t('stats.filterTitle')}</span>
         </div>
         
         {/* 分组切换 - 分段控件 */}
         <div className="mb-4">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 gap-1">
+          <div className="inline-flex rounded-lg border border-stone-200 bg-stone-50 p-1 gap-1">
             {GROUPS.map((g) => (
               <button
                 key={g.v}
                 onClick={() => setF({ ...f, groupBy: g.v })}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   f.groupBy === g.v
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white text-stone-800 shadow-sm'
+                    : 'text-stone-500 hover:text-stone-700'
                 }`}
               >
                 {t(g.key)}
@@ -145,7 +145,7 @@ export default function StatsPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterProtocol')}</label>
+            <label className="block text-xs font-medium text-stone-500 mb-1.5">{t('stats.filterProtocol')}</label>
             <Select value={f.protocol} onChange={(e) => setF({ ...f, protocol: e.target.value })} className="w-full">
               <option value="">{t('stats.filterAllProtocols')}</option>
               <option value="openai_chat">openai_chat</option>
@@ -154,60 +154,60 @@ export default function StatsPage() {
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterSource')}</label>
+            <label className="block text-xs font-medium text-stone-500 mb-1.5">{t('stats.filterSource')}</label>
             <Select value={f.sourceId} onChange={(e) => setF({ ...f, sourceId: e.target.value })} className="w-full">
               <option value="">{t('stats.filterAllSources')}</option>
               {sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterEntry')}</label>
+            <label className="block text-xs font-medium text-stone-500 mb-1.5">{t('stats.filterEntry')}</label>
             <Select value={f.channelId} onChange={(e) => setF({ ...f, channelId: e.target.value })} className="w-full">
               <option value="">{t('stats.filterAllEntries')}</option>
               {entries.map((c) => <option key={c.id} value={c.id}>{c.exposedModel}</option>)}
             </Select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterModel')}</label>
+            <label className="block text-xs font-medium text-stone-500 mb-1.5">{t('stats.filterModel')}</label>
             <input placeholder={t('stats.filterModelPlaceholder')} value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })}
-              className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+              className="w-full rounded-lg bg-white border border-stone-200 px-2.5 py-2 text-xs text-stone-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterStart')}</label>
+            <label className="block text-xs font-medium text-stone-500 mb-1.5">{t('stats.filterStart')}</label>
             <input type="date" value={f.dateFrom} onChange={(e) => setF({ ...f, dateFrom: e.target.value })}
-              className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+              className="w-full rounded-lg bg-white border border-stone-200 px-2.5 py-2 text-xs text-stone-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">{t('stats.filterEnd')}</label>
+            <label className="block text-xs font-medium text-stone-500 mb-1.5">{t('stats.filterEnd')}</label>
             <input type="date" value={f.dateTo} onChange={(e) => setF({ ...f, dateTo: e.target.value })}
-              className="w-full rounded-lg bg-white border border-slate-200 px-2.5 py-2 text-xs text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
+              className="w-full rounded-lg bg-white border border-stone-200 px-2.5 py-2 text-xs text-stone-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20" />
           </div>
         </div>
       </Card>
 
       {/* 图表 */}
       <Card className="p-5 mb-6">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-stone-100">
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-50">
               <BarChart3 size={16} className="text-brand-600" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-800">{isTime ? t('stats.chartTrend') : t('stats.chartCompare')}</div>
-              <div className="text-xs text-slate-500">{isTime ? t('stats.chartTrendDesc') : t('stats.chartCompareDesc')}</div>
+              <div className="text-sm font-semibold text-stone-800">{isTime ? t('stats.chartTrend') : t('stats.chartCompare')}</div>
+              <div className="text-xs text-stone-500">{isTime ? t('stats.chartTrendDesc') : t('stats.chartCompareDesc')}</div>
             </div>
           </div>
           <div className="flex items-center gap-3 text-xs">
             {series.map((s) => (
               <div key={s.key} className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
-                <span className="text-slate-600">{s.label}</span>
+                <span className="text-stone-600">{s.label}</span>
               </div>
             ))}
           </div>
         </div>
         {loading ? (
-          <div className="h-[280px] flex items-center justify-center text-slate-300 text-sm">{t('common.loading')}</div>
+          <div className="h-[280px] flex items-center justify-center text-stone-300 text-sm">{t('common.loading')}</div>
         ) : rows.length === 0 ? (
           <div className="h-[280px] flex items-center justify-center">
             <EmptyState icon={<BarChart3 size={24} />} title={t('stats.empty')} description={t('stats.emptyDesc')} />
@@ -221,28 +221,28 @@ export default function StatsPage() {
 
       {/* 表格 */}
       <Card className="overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+        <div className="px-5 py-3.5 border-b border-stone-100 bg-gradient-to-r from-stone-50 to-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar size={15} className="text-slate-400" />
-              <span className="text-sm font-semibold text-slate-700">{t('stats.tableTitle')}</span>
+              <Calendar size={15} className="text-stone-400" />
+              <span className="text-sm font-semibold text-stone-700">{t('stats.tableTitle')}</span>
             </div>
-            <span className="text-xs text-slate-500">{t('stats.tableCount', { rows: rows.length })}</span>
+            <span className="text-xs text-stone-500">{t('stats.tableCount', { rows: rows.length })}</span>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">{t(GROUPS.find((g) => g.v === f.groupBy)?.key ?? 'stats.tableGroup')}</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('stats.tableInput')}</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('stats.tableCached')}</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('stats.tableOutput')}</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('stats.tableCalls')}</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">{t('stats.tableCost')}</th>
+              <tr className="border-b border-stone-200 bg-stone-50/50">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t(GROUPS.find((g) => g.v === f.groupBy)?.key ?? 'stats.tableGroup')}</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableInput')}</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableCached')}</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableOutput')}</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableCalls')}</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableCost')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-stone-100">
               {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)}
               {!loading && rows.length === 0 && (
                 <tr><td colSpan={6}><EmptyState icon={<BarChart3 size={24} />} title={t('stats.empty')} description="" /></td></tr>
@@ -254,48 +254,48 @@ export default function StatsPage() {
                 const maxCalls = Math.max(1, ...rows.map((row) => row.calls));
                 const maxCost = Math.max(1e-6, ...rows.map((row) => row.cost || 0));
                 return (
-                  <tr key={i} className="hover:bg-slate-50/80 transition-colors group">
+                  <tr key={i} className="hover:bg-stone-50/80 transition-colors group">
                     <td className="px-5 py-3.5">
-                      <div className="text-sm font-medium text-slate-800">{r.label}</div>
+                      <div className="text-sm font-medium text-stone-800">{r.label}</div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(r.inputTokens / maxInput) * 100}%`, backgroundColor: '#6366f1' }} />
+                        <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(r.inputTokens / maxInput) * 100}%`, backgroundColor: '#d97757' }} />
                         </div>
-                        <span className="text-sm text-slate-700 tabular-nums font-medium min-w-[60px]">{r.inputTokens.toLocaleString()}</span>
+                        <span className="text-sm text-stone-700 tabular-nums font-medium min-w-[60px]">{r.inputTokens.toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(r.cachedInputTokens / maxCached) * 100}%`, backgroundColor: '#10b981' }} />
+                        <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(r.cachedInputTokens / maxCached) * 100}%`, backgroundColor: '#3f8f7a' }} />
                         </div>
-                        <span className="text-sm text-slate-700 tabular-nums font-medium min-w-[60px]">{r.cachedInputTokens.toLocaleString()}</span>
+                        <span className="text-sm text-stone-700 tabular-nums font-medium min-w-[60px]">{r.cachedInputTokens.toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(r.outputTokens / maxOutput) * 100}%`, backgroundColor: '#f59e0b' }} />
+                        <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(r.outputTokens / maxOutput) * 100}%`, backgroundColor: '#c2882e' }} />
                         </div>
-                        <span className="text-sm text-slate-700 tabular-nums font-medium min-w-[60px]">{r.outputTokens.toLocaleString()}</span>
+                        <span className="text-sm text-stone-700 tabular-nums font-medium min-w-[60px]">{r.outputTokens.toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${(r.calls / maxCalls) * 100}%`, backgroundColor: '#64748b' }} />
+                        <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(r.calls / maxCalls) * 100}%`, backgroundColor: '#8a8278' }} />
                         </div>
-                        <span className="text-sm text-slate-700 tabular-nums font-medium min-w-[60px]">{r.calls.toLocaleString()}</span>
+                        <span className="text-sm text-stone-700 tabular-nums font-medium min-w-[60px]">{r.calls.toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${((r.cost || 0) / maxCost) * 100}%`, backgroundColor: '#8b5cf6' }} />
+                        <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${((r.cost || 0) / maxCost) * 100}%`, backgroundColor: '#a1492d' }} />
                         </div>
-                        <span className="text-sm text-violet-600 tabular-nums font-medium min-w-[70px]">{fmtMoney(r.cost || 0)}</span>
+                        <span className="text-sm text-brand-700 tabular-nums font-medium min-w-[70px]">{fmtMoney(r.cost || 0)}</span>
                       </div>
                     </td>
                   </tr>
@@ -304,13 +304,13 @@ export default function StatsPage() {
             </tbody>
             {!loading && rows.length > 0 && (
               <tfoot>
-                <tr className="border-t-2 border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-                  <td className="px-5 py-3.5 text-sm font-bold text-slate-800">{t('stats.total')}</td>
-                  <td className="px-5 py-3.5 text-right text-sm font-bold text-indigo-600 tabular-nums">{totals.inputTokens.toLocaleString()}</td>
+                <tr className="border-t-2 border-stone-200 bg-gradient-to-r from-stone-50 to-white">
+                  <td className="px-5 py-3.5 text-sm font-bold text-stone-800">{t('stats.total')}</td>
+                  <td className="px-5 py-3.5 text-right text-sm font-bold text-brand-600 tabular-nums">{totals.inputTokens.toLocaleString()}</td>
                   <td className="px-5 py-3.5 text-right text-sm font-bold text-emerald-600 tabular-nums">{totals.cachedInputTokens.toLocaleString()}</td>
                   <td className="px-5 py-3.5 text-right text-sm font-bold text-amber-600 tabular-nums">{totals.outputTokens.toLocaleString()}</td>
-                  <td className="px-5 py-3.5 text-right text-sm font-bold text-slate-700 tabular-nums">{totals.calls.toLocaleString()}</td>
-                  <td className="px-5 py-3.5 text-right text-sm font-bold text-violet-600 tabular-nums">{fmtMoney(totals.cost || 0)}</td>
+                  <td className="px-5 py-3.5 text-right text-sm font-bold text-stone-700 tabular-nums">{totals.calls.toLocaleString()}</td>
+                  <td className="px-5 py-3.5 text-right text-sm font-bold text-brand-700 tabular-nums">{fmtMoney(totals.cost || 0)}</td>
                 </tr>
               </tfoot>
             )}
@@ -347,7 +347,7 @@ function StatCardEnhanced({
   const percentage = !isCalls && !money && total > 0 ? (numValue / total) * 100 : 0;
   
   return (
-    <div className="relative rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+    <div className="relative rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       {/* 顶部色条 */}
       <div className="h-1 w-full" style={{ backgroundColor: accent }} />
       
@@ -363,14 +363,14 @@ function StatCardEnhanced({
           )}
         </div>
         
-        <div className="text-2xl font-bold text-slate-800 tracking-tight mb-1">
+        <div className="text-2xl font-bold text-stone-800 tracking-tight mb-1">
           {money ? fmtMoney(numValue) : (typeof value === 'number' ? value.toLocaleString() : value)}
         </div>
-        <div className="text-xs text-slate-500 leading-tight">{label}</div>
+        <div className="text-xs text-stone-500 leading-tight">{label}</div>
 
         {/* 占比指示条 */}
         {!isCalls && !money && percentage > 0 && (
-          <div className="mt-3 h-1 rounded-full bg-slate-100 overflow-hidden">
+          <div className="mt-3 h-1 rounded-full bg-stone-100 overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${percentage}%`, backgroundColor: accent }}
@@ -428,25 +428,25 @@ function StackedPanel({
 
   return (
     <Card className="mt-6 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-brand-50/50 to-white">
+      <div className="px-5 py-3.5 border-b border-stone-100 bg-gradient-to-r from-brand-50/50 to-white">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 mr-2">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-50">
               <BarChart3 size={16} className="text-brand-600" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-800">{t('stats.stackTitle')}</div>
-              <div className="text-xs text-slate-500">{t('stats.stackDesc')}</div>
+              <div className="text-sm font-semibold text-stone-800">{t('stats.stackTitle')}</div>
+              <div className="text-xs text-stone-500">{t('stats.stackDesc')}</div>
             </div>
           </div>
           <Select value={dim} onChange={(e) => setDim(e.target.value)} className="w-64">
             {STACK_DIMS.map((d) => <option key={d.v} value={d.v}>{t(d.key)}</option>)}
           </Select>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 gap-0.5">
+          <div className="inline-flex rounded-lg border border-stone-200 bg-stone-50 p-0.5 gap-0.5">
             <button
               onClick={() => setMetric('tokens')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                metric === 'tokens' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                metric === 'tokens' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
               {t('stats.stackToken')}
@@ -454,7 +454,7 @@ function StackedPanel({
             <button
               onClick={() => setMetric('calls')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                metric === 'calls' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                metric === 'calls' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
               {t('stats.stackCalls')}
@@ -462,7 +462,7 @@ function StackedPanel({
             <button
               onClick={() => setMetric('cost')}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                metric === 'cost' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                metric === 'cost' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
               {t('stats.stackCost')}
@@ -478,7 +478,7 @@ function StackedPanel({
       </div>
       <div className="p-5">
         {loading ? (
-          <div className="h-[320px] flex items-center justify-center text-slate-300 text-sm">{t('common.loading')}</div>
+          <div className="h-[320px] flex items-center justify-center text-stone-300 text-sm">{t('common.loading')}</div>
         ) : needSource && !sourceId ? (
           <div className="h-[320px] flex items-center justify-center">
             <EmptyState icon={<BarChart3 size={24} />} title={t('stats.stackPickSource')} description={t('stats.stackPickSourceDesc')} />

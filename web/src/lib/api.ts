@@ -87,6 +87,7 @@ export interface MetaInfo {
 export interface Settings {
   logIo: boolean;
   logStreamBody: boolean;
+  logCap: number;
 }
 
 export interface LogRow {

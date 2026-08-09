@@ -32,19 +32,7 @@ LocalGate solves all of this with a single local gateway. Point your app at Loca
 
 ## Quick Start
 
-### Run as Server
-
-```bash
-git clone https://github.com/your-username/localgate.git
-cd localgate
-pnpm install
-./start.sh          # foreground (Ctrl+C to stop)
-./start.sh -d       # or background mode
-```
-
-Open `http://localhost:8787` in your browser to access the dashboard.
-
-### Run as Desktop App
+### Desktop App
 
 Download the latest release from [GitHub Releases](../../releases):
 
@@ -61,11 +49,25 @@ pnpm run build
 make run
 ```
 
+### Run as Server
+
+```bash
+git clone https://github.com/your-username/localgate.git
+cd localgate
+pnpm install
+./start.sh          # foreground (Ctrl+C to stop)
+./start.sh -d       # or background mode
+```
+
+Open `http://localhost:8787` in your browser to access the dashboard.
+
 ## Usage Guide
 
 ### Step 1: Add an Upstream Source
 
 Go to **Sources** → **New Source** to configure an AI provider:
+
+![Sources](examples/sources.jpg)
 
 - **Name**: A friendly label (e.g., "OpenAI Official", "Local Ollama")
 - **API Key**: The provider's API key (shared across all endpoints)
@@ -89,6 +91,8 @@ Go to **Sources** → **New Source** to configure an AI provider:
 ### Step 2: Create a Model Entry
 
 Go to **Model Entries** → **New Entry** to create a virtual API entry point:
+
+![Model Entries](examples/model_entry.jpg)
 
 - **Exposed Model Name**: The model name your clients will use (e.g., `gpt-4o`, `my-model`)
 - **Inbound Protocol**: Which API format to accept (`openai_chat`, `openai_response`, or `anthropic`)
@@ -161,6 +165,8 @@ Streaming (`"stream": true`) is fully supported for all protocols.
 
 ### Call Logs & Debugging
 
+![Call Logs](examples/calllogs.jpg)
+
 Every proxied request is logged with:
 
 - Full request and response bodies (including streaming SSE)
@@ -171,6 +177,8 @@ Every proxied request is logged with:
 You can **star** important logs, **tag** them for filtering, and view formatted or raw payloads in the detail page.
 
 ### Usage Statistics
+
+![Statistics](examples/statistics.jpg)
 
 The dashboard provides multiple views:
 

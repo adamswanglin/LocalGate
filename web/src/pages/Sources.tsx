@@ -112,8 +112,8 @@ export default function SourcesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800 tracking-tight">{t('sources.title')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{t('sources.subtitle')}</p>
+          <h1 className="text-xl font-semibold text-stone-800 tracking-tight">{t('sources.title')}</h1>
+          <p className="text-sm text-stone-500 mt-1">{t('sources.subtitle')}</p>
         </div>
         <Button variant="primary" onClick={startCreate}><Plus size={16} /> {t('sources.add')}</Button>
       </div>
@@ -128,7 +128,7 @@ export default function SourcesPage() {
       {/* Table */}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs">
+          <thead className="bg-stone-50 text-stone-500 text-xs">
             <tr>
               <th className="text-left px-4 py-3 font-medium">{t('sources.colName')}</th>
               <th className="text-left px-4 py-3 font-medium">{t('sources.colEndpoints')}</th>
@@ -138,27 +138,27 @@ export default function SourcesPage() {
               <th className="text-right px-4 py-3 font-medium">{t('sources.colActions')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-stone-100">
             {loading && Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} cols={6} />)}
             {!loading && rows.length === 0 && (
               <tr><td colSpan={6}><EmptyState icon={<Server size={24} />} title={t('sources.empty')} description={t('sources.emptyDesc')} /></td></tr>
             )}
             {rows.map((s) => (
-              <tr key={s.id} className="hover:bg-slate-50 transition-colors align-middle">
-                <td className="px-4 py-3 text-slate-800 font-medium">{s.name}</td>
+              <tr key={s.id} className="hover:bg-stone-50 transition-colors align-middle">
+                <td className="px-4 py-3 text-stone-800 font-medium">{s.name}</td>
                 <td className="px-4 py-3">
                   <div className="space-y-1">
                     {(s.endpoints || []).map((ep) => (
                       <div key={ep.protocol} className="flex items-center gap-2">
                         <Badge tone="indigo">{ep.protocol}</Badge>
-                        <span className="font-mono text-[11px] text-slate-500 truncate max-w-[240px]" title={ep.baseUrl}>{ep.baseUrl}</span>
+                        <span className="font-mono text-[11px] text-stone-500 truncate max-w-[240px]" title={ep.baseUrl}>{ep.baseUrl}</span>
                       </div>
                     ))}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-slate-400 font-mono text-xs">{maskKey(s.apiKey)}</td>
+                <td className="px-4 py-3 text-stone-400 font-mono text-xs">{maskKey(s.apiKey)}</td>
                 <td className="px-4 py-3">
-                  <span className="inline-flex items-center rounded-md bg-slate-100 text-slate-600 px-2 py-0.5 text-[11px]">
+                  <span className="inline-flex items-center rounded-md bg-stone-100 text-stone-600 px-2 py-0.5 text-[11px]">
                     {t('sources.modelsCount', { n: (s.models || []).length })}
                   </span>
                 </td>
@@ -194,7 +194,7 @@ export default function SourcesPage() {
           <ModelsEditor rows={form.models} onChange={(models) => setForm({ ...form, models })} />
           <div className="flex items-center gap-2 pt-1">
             <Toggle checked={form.enabled ?? true} onChange={(v) => setForm({ ...form, enabled: v })} />
-            <span className="text-sm text-slate-600">{t('common.enabled')}</span>
+            <span className="text-sm text-stone-600">{t('common.enabled')}</span>
           </div>
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</Button>
@@ -216,9 +216,9 @@ function EndpointsEditor({ rows, onChange }: { rows: EndpointRow[]; onChange: (r
   return (
     <div>
       <Label>{t('sources.endpointsLabel')}</Label>
-      {rows.length === 0 && <p className="text-xs text-slate-400 mb-2">{t('sources.endpointsEmpty')}</p>}
+      {rows.length === 0 && <p className="text-xs text-stone-400 mb-2">{t('sources.endpointsEmpty')}</p>}
       {rows.map((r, i) => (
-        <div key={i} className="mb-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2 flex items-center gap-2">
+        <div key={i} className="mb-2 rounded-lg border border-stone-200 bg-stone-50/60 p-2 flex items-center gap-2">
           <Select value={r.protocol} onChange={(e) => update(i, { protocol: e.target.value })} className="w-56 shrink-0">
             {PROVIDERS.map((p) => <option key={p.v} value={p.v}>{t(p.key)}</option>)}
           </Select>
@@ -241,24 +241,24 @@ function ModelsEditor({ rows, onChange }: { rows: ModelRow[]; onChange: (rows: M
   return (
     <div>
       <Label>{t('sources.modelsLabel')}</Label>
-      {rows.length === 0 && <p className="text-xs text-slate-400 mb-2">{t('sources.modelsEmpty')}</p>}
+      {rows.length === 0 && <p className="text-xs text-stone-400 mb-2">{t('sources.modelsEmpty')}</p>}
       {rows.map((r, i) => (
-        <div key={i} className="mb-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2 space-y-1.5">
+        <div key={i} className="mb-2 rounded-lg border border-stone-200 bg-stone-50/60 p-2 space-y-1.5">
           <div className="flex items-center gap-2">
             <Input placeholder={t('sources.placeholderModel')} value={r.model} onChange={(e) => update(i, { model: e.target.value })} />
             <Button size="sm" variant="ghost" onClick={() => remove(i)}><Trash2 size={13} className="text-red-500" /></Button>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <div className="text-[10px] text-slate-400 mb-1">{t('sources.priceInput')}</div>
+              <div className="text-[10px] text-stone-400 mb-1">{t('sources.priceInput')}</div>
               <Input type="number" step="any" min="0" placeholder={t('sources.placeholderPrice')} value={r.inputPrice} onChange={(e) => update(i, { inputPrice: e.target.value })} />
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 mb-1">{t('sources.priceCached')}</div>
+              <div className="text-[10px] text-stone-400 mb-1">{t('sources.priceCached')}</div>
               <Input type="number" step="any" min="0" placeholder={t('sources.placeholderPrice')} value={r.cachedInputPrice} onChange={(e) => update(i, { cachedInputPrice: e.target.value })} />
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 mb-1">{t('sources.priceOutput')}</div>
+              <div className="text-[10px] text-stone-400 mb-1">{t('sources.priceOutput')}</div>
               <Input type="number" step="any" min="0" placeholder={t('sources.placeholderPrice')} value={r.outputPrice} onChange={(e) => update(i, { outputPrice: e.target.value })} />
             </div>
           </div>

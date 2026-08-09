@@ -20,6 +20,7 @@ interface ResolvedChannel {
 interface GlobalSettings {
   logIo: boolean;
   logStreamBody: boolean;
+  logCap: number;
 }
 
 /** 上游模型价格（元/百万 token）；未配置为 null */
@@ -44,8 +45,9 @@ async function loadSettings(): Promise<GlobalSettings> {
   settingsCache = {
     logIo: s ? !!s.logIo : true,
     logStreamBody: s ? !!s.logStreamBody : true,
+    logCap: s ? s.logCap : 10000,
   };
-  return settingsCache;
+  return settingsCache!;
 }
 
 /* ---------------- 访问令牌鉴权 ---------------- */

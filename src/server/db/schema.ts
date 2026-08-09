@@ -133,6 +133,8 @@ export const settings = sqliteTable('t_proxy_settings', {
   logIo: integer('log_io').default(1).notNull(),
   // 流式响应是否捕获完整 body（全局开关）
   logStreamBody: integer('log_stream_body').default(1).notNull(),
+  // 日志总量上限（非收藏记录达到该量级后触发清理）
+  logCap: integer('log_cap').default(10000).notNull(),
 });
 
 export type Source = typeof sources.$inferSelect;

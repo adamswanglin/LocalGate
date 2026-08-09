@@ -224,34 +224,34 @@ export default function ModelEntriesPage() {
 
   const subTabCls = (active: boolean) =>
     `inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm transition-colors cursor-pointer ${
-      active ? 'border-brand-300 bg-brand-50 text-brand-700 font-medium' : 'border-slate-200 bg-white text-slate-600 hover:text-slate-800'
+      active ? 'border-brand-300 bg-brand-50 text-brand-700 font-medium' : 'border-stone-200 bg-white text-stone-600 hover:text-stone-800'
     }`;
 
   return (
     <div className="p-6 animate-fade-in">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-800 tracking-tight">{t('modelEntries.title')}</h1>
-        <p className="text-sm text-slate-500 mt-1">{t('modelEntries.subtitle')}</p>
+        <h1 className="text-xl font-semibold text-stone-800 tracking-tight">{t('modelEntries.title')}</h1>
+        <p className="text-sm text-stone-500 mt-1">{t('modelEntries.subtitle')}</p>
       </div>
 
       {/* 接入地址 BaseURL */}
       <Card className="p-4 mb-6">
-        <div className="flex items-center gap-2 text-slate-500 mb-2.5">
+        <div className="flex items-center gap-2 text-stone-500 mb-2.5">
           <Globe size={15} /><span className="text-xs font-medium uppercase tracking-wider">{t('baseurl.title')}</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {baseUrls.length === 0 && <span className="text-xs text-slate-400">{t('common.loading')}</span>}
+          {baseUrls.length === 0 && <span className="text-xs text-stone-400">{t('common.loading')}</span>}
           {baseUrls.map((u) => (
-            <div key={u} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-              <code className="text-xs font-mono text-slate-600">{u}</code>
+            <div key={u} className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5">
+              <code className="text-xs font-mono text-stone-600">{u}</code>
               <CopyButton text={u} label={t('common.copy')} />
             </div>
           ))}
         </div>
-        <div className="mt-2 text-[11px] font-mono text-slate-400 leading-relaxed">
+        <div className="mt-2 text-[11px] font-mono text-stone-400 leading-relaxed">
           {t('baseurl.protocolPaths')} {PROTOCOL_PATHS.join(' · ')}
           <br />{t('baseurl.callExample', { url: baseUrls[0] || 'http://127.0.0.1:8787', path: PROTOCOL_PATHS[0] })}
-          {tokens.length === 0 && <span className="text-slate-500"> {t('baseurl.noAuth')}</span>}
+          {tokens.length === 0 && <span className="text-stone-500"> {t('baseurl.noAuth')}</span>}
         </div>
       </Card>
 
@@ -268,13 +268,13 @@ export default function ModelEntriesPage() {
       {/* ── AccessToken ── */}
       {mainTab === 'tokens' && (
         <Card className="overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100">
-            <div className="flex items-center gap-2 text-slate-500">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-stone-100">
+            <div className="flex items-center gap-2 text-stone-500">
               <KeyRound size={15} /><span className="text-xs font-medium uppercase tracking-wider">{t('tokens.title')}</span>
             </div>
             <Button size="sm" variant="default" onClick={startTokCreate}><Plus size={14} /> {t('tokens.add')}</Button>
           </div>
-          <div className="px-4 py-2 text-sm text-slate-500 border-b border-slate-100">
+          <div className="px-4 py-2 text-sm text-stone-500 border-b border-stone-100">
             {tokens.length === 0 ? t('tokens.subtitleNone') : t('tokens.subtitleSome')}
           </div>
           {createdToken && (
@@ -293,7 +293,7 @@ export default function ModelEntriesPage() {
             </div>
           )}
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-xs">
+            <thead className="bg-stone-50 text-stone-500 text-xs">
               <tr>
                 <th className="text-left px-4 py-3 font-medium">{t('tokens.colName')}</th>
                 <th className="text-left px-4 py-3 font-medium">{t('tokens.colToken')}</th>
@@ -303,18 +303,18 @@ export default function ModelEntriesPage() {
                 <th className="text-right px-4 py-3 font-medium">{t('modelEntries.colActions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-stone-100">
               {loading && Array.from({ length: 2 }).map((_, i) => <SkeletonRow key={i} cols={6} />)}
               {!loading && tokens.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-sm text-slate-400">{t('tokens.empty')} — {t('tokens.emptyDesc')}</td></tr>
+                <tr><td colSpan={6} className="px-4 py-6 text-sm text-stone-400">{t('tokens.empty')} — {t('tokens.emptyDesc')}</td></tr>
               )}
               {tokens.map((tk) => (
-                <tr key={tk.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-slate-800 font-medium">{tk.name}</td>
+                <tr key={tk.id} className="hover:bg-stone-50 transition-colors">
+                  <td className="px-4 py-3 text-stone-800 font-medium">{tk.name}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <code className="font-mono text-xs text-slate-600">{tk.token}</code>
-                      <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer" onClick={() => copyToken(tk.id, tk.token)}>
+                      <code className="font-mono text-xs text-stone-600">{tk.token}</code>
+                      <button className="text-stone-400 hover:text-stone-600 transition-colors cursor-pointer" onClick={() => copyToken(tk.id, tk.token)}>
                         {copiedTok === tk.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                       </button>
                     </div>
@@ -325,8 +325,8 @@ export default function ModelEntriesPage() {
                       {tk.enabled ? <Badge tone="green">{t('common.enabled')}</Badge> : <Badge tone="slate">{t('common.disabled')}</Badge>}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{fmtDate(tk.createdAt)}</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{tk.lastUsedAt ? fmtDate(tk.lastUsedAt) : <span className="text-slate-300">{t('tokens.notUsed')}</span>}</td>
+                  <td className="px-4 py-3 text-stone-500 text-xs">{fmtDate(tk.createdAt)}</td>
+                  <td className="px-4 py-3 text-stone-500 text-xs">{tk.lastUsedAt ? fmtDate(tk.lastUsedAt) : <span className="text-stone-300">{t('tokens.notUsed')}</span>}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Button size="sm" variant="ghost" onClick={() => startTokEdit(tk)}><Pencil size={13} /></Button>
@@ -355,55 +355,59 @@ export default function ModelEntriesPage() {
 
           {!loading && groups.length === 0 && (
             <Card className="p-10 text-center">
-              <p className="text-sm text-slate-400">{t('modelEntries.empty')} — {t('modelEntries.emptyDesc')}</p>
+              <p className="text-sm text-stone-400">{t('modelEntries.empty')} — {t('modelEntries.emptyDesc')}</p>
             </Card>
           )}
 
           <div className="space-y-4">
             {groups.map((g) => (
               <Card key={g.model} className="overflow-hidden">
-                {/* 组头：modelId + 操作 */}
-                <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 bg-slate-50/60">
-                  <div className="flex items-center gap-1.5 font-mono text-sm text-slate-800 min-w-0">
-                    {g.model ? (
-                      <>
-                        <span className="truncate">{g.model}</span>
-                        <button className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer shrink-0" onClick={() => copy(g.model)}>
-                          {copied === g.model ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-slate-400 italic font-sans text-xs">{t('modelEntries.legacyNoName')}</span>
-                    )}
+                {/* 组头：对外模型名（主）+ 操作 */}
+                <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-stone-100">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="mt-1 h-8 w-1 rounded-full bg-brand-500 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-stone-400">{t('modelEntries.fieldModel')}</div>
+                      {g.model ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[15px] font-semibold text-stone-900 tracking-tight truncate">{g.model}</span>
+                          <button className="text-stone-400 hover:text-stone-600 transition-colors cursor-pointer shrink-0" onClick={() => copy(g.model)}>
+                            {copied === g.model ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-stone-400 italic text-xs">{t('modelEntries.legacyNoName')}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button size="sm" variant="ghost" onClick={() => startEditGroup(g.model)}><Pencil size={13} /> {t('modelEntries.editGroup')}</Button>
                     <Button size="sm" variant="ghost" onClick={() => removeGroup(g.model)}><Trash2 size={13} className="text-red-500" /></Button>
                   </div>
                 </div>
-                {/* 组体：每个协议一行 */}
+                {/* 组体：每个协议一行（次级信息） */}
                 <table className="w-full text-sm">
-                  <thead className="text-slate-400 text-xs">
-                    <tr>
-                      <th className="text-left px-4 py-2 font-medium">{t('modelEntries.fieldApiTypes')}</th>
-                      <th className="text-left px-4 py-2 font-medium">{t('modelEntries.colUpstream')}</th>
-                      <th className="text-left px-4 py-2 font-medium">{t('modelEntries.colPrice')}</th>
-                      <th className="text-left px-4 py-2 font-medium">{t('modelEntries.colStatus')}</th>
+                  <thead className="text-stone-400 text-[11px]">
+                    <tr className="border-b border-stone-100">
+                      <th className="text-left px-5 py-2 font-medium uppercase tracking-wide">{t('modelEntries.fieldApiTypes')}</th>
+                      <th className="text-left px-5 py-2 font-medium uppercase tracking-wide">{t('modelEntries.colUpstream')}</th>
+                      <th className="text-left px-5 py-2 font-medium uppercase tracking-wide">{t('modelEntries.colPrice')}</th>
+                      <th className="text-left px-5 py-2 font-medium uppercase tracking-wide">{t('modelEntries.colStatus')}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-stone-100">
                     {g.channels.map((c) => {
                       const active = c.bindings.find((b) => b.id === c.activeBindingId) || c.bindings[0];
                       return (
                         <tr key={c.id} className="align-middle">
-                          <td className="px-4 py-3"><Badge tone="indigo">{t(protocolKey(c.protocol))}</Badge></td>
-                          <td className="px-4 py-3">
+                          <td className="px-5 py-3"><Badge tone="indigo">{t(protocolKey(c.protocol))}</Badge></td>
+                          <td className="px-5 py-3">
                             {c.bindings.length > 1 ? (
                               <div className="flex items-center gap-1.5">
                                 <select
                                   value={active?.id ?? ''}
                                   onChange={(e) => switchActive(c, Number(e.target.value))}
-                                  className="rounded-lg bg-white border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-brand-500 cursor-pointer max-w-[16rem]"
+                                  className="rounded-lg bg-white border border-stone-200 px-2 py-1 text-xs text-stone-700 focus:outline-none focus:border-brand-500 cursor-pointer max-w-[16rem]"
                                   title={t('modelEntries.switchActive')}
                                 >
                                   {c.bindings.map((b) => (
@@ -412,13 +416,17 @@ export default function ModelEntriesPage() {
                                 </select>
                               </div>
                             ) : active ? (
-                              <span className="font-mono text-xs text-slate-600">{active.sourceName} / {active.model}</span>
+                              <span className="text-xs text-stone-700">
+                                <span className="font-medium">{active.sourceName}</span>
+                                <span className="text-stone-400"> / </span>
+                                <span className="font-mono text-stone-500">{active.model}</span>
+                              </span>
                             ) : (
-                              <span className="text-slate-300 text-xs">{t('modelEntries.noBinding')}</span>
+                              <span className="text-stone-300 text-xs">{t('modelEntries.noBinding')}</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 font-mono text-xs text-slate-500">{active ? priceLabel(active) : '-'}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-5 py-3 font-mono text-xs text-stone-400">{active ? priceLabel(active) : '-'}</td>
+                          <td className="px-5 py-3">
                             <div className="flex items-center gap-2">
                               <Toggle checked={c.enabled} onChange={(v) => switchEnabled(c, v)} />
                               {c.enabled ? <Badge tone="green">{t('common.enabled')}</Badge> : <Badge tone="slate">{t('common.disabled')}</Badge>}
@@ -449,17 +457,17 @@ export default function ModelEntriesPage() {
 
           <div className="pt-1">
             <Label>{t('modelEntries.fieldApiTypes')}</Label>
-            <p className="text-xs text-slate-400 mb-2">{t('modelEntries.fieldApiTypesHint')}</p>
+            <p className="text-xs text-stone-400 mb-2">{t('modelEntries.fieldApiTypesHint')}</p>
             {form.protocols.map((sec, i) => (
-              <div key={sec.protocol} className="mb-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <div key={sec.protocol} className="mb-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Badge tone="indigo">{t(protocolKey(sec.protocol))}</Badge>
-                  <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
+                  <label className="flex items-center gap-1.5 text-xs text-stone-500 cursor-pointer select-none">
                     <Toggle checked={sec.enabled} onChange={(v) => setForm({ ...form, protocols: form.protocols.map((p, idx) => (idx === i ? { ...p, enabled: v } : p)) })} />
                     {t('common.enabled')}
                   </label>
                   {sec.bindings.length === 0 && (
-                    <span className="text-[11px] text-slate-400">{t('modelEntries.typeUnconfigured')}</span>
+                    <span className="text-[11px] text-stone-400">{t('modelEntries.typeUnconfigured')}</span>
                   )}
                 </div>
                 <BindingsEditor
@@ -489,7 +497,7 @@ export default function ModelEntriesPage() {
               <Input value={tokForm.token} onChange={(e) => setTokForm({ ...tokForm, token: e.target.value })} placeholder={t('tokens.placeholderToken')} />
             </div>
           )}
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-stone-400">
             {tokEditId ? t('tokens.hintEdit') : t('tokens.hintCreate')}
           </p>
           <div className="flex justify-end gap-2 pt-3">
@@ -534,14 +542,14 @@ function BindingsEditor({
       {sources.length === 0 && (
         <p className="text-xs text-amber-600 mb-2">{t('modelEntries.bindingsWarn')}</p>
       )}
-      {rows.length === 0 && <p className="text-xs text-slate-400 mb-2">{t('modelEntries.bindingsEmpty')}</p>}
+      {rows.length === 0 && <p className="text-xs text-stone-400 mb-2">{t('modelEntries.bindingsEmpty')}</p>}
       {rows.map((r, i) => {
         const models = modelsOf(r);
         const selected = models.find((m) => m.id === Number(r.sourceModelId));
         return (
-          <div key={i} className="mb-2 rounded-lg border border-slate-200 bg-white p-2 space-y-1.5">
+          <div key={i} className="mb-2 rounded-lg border border-stone-200 bg-white p-2 space-y-1.5">
             <div className="flex items-center gap-2">
-              <label className={`inline-flex items-center gap-1.5 text-xs cursor-pointer select-none shrink-0 ${activeIndex === i ? 'text-brand-700 font-medium' : 'text-slate-400'}`}>
+              <label className={`inline-flex items-center gap-1.5 text-xs cursor-pointer select-none shrink-0 ${activeIndex === i ? 'text-brand-700 font-medium' : 'text-stone-400'}`}>
                 <input
                   type="radio"
                   name={`active-binding-${i}`}
@@ -575,7 +583,7 @@ function BindingsEditor({
                 </Select>
               </div>
               {selected && (
-                <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
+                <span className="text-[10px] text-stone-400 whitespace-nowrap shrink-0">
                   {t('sources.priceOutput')} ¥{fmtPrice(selected.inputPrice)} / ¥{fmtPrice(selected.cachedInputPrice)} / ¥{fmtPrice(selected.outputPrice)}
                 </span>
               )}

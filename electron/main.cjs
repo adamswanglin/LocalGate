@@ -252,6 +252,16 @@ if (!gotLock) {
       dlog('user requested install & restart');
       autoUpdater.quitAndInstall();
     });
+
+    // IPC: 同步返回操作系统首选语言列表（用于「跟随系统语言」检测）
+    ipcMain.on('get-system-languages', (event) => {
+      try {
+        event.returnValue = app.getPreferredSystemLanguages();
+      } catch (e) {
+        dlog('getPreferredSystemLanguages failed:', e?.message || e);
+        event.returnValue = [app.getLocale()];
+      }
+    });
   });
 
   app.on('window-all-closed', () => {

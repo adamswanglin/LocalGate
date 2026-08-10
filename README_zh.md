@@ -71,21 +71,21 @@ pnpm install
 
 - **名称**：便于识别的标签（如 "OpenAI 官方"、"本地 Ollama"）
 - **API Key**：服务商的密钥（同一源的所有协议地址共用）
-- **协议地址**：添加一个或多个协议端点：
-  - `openai_chat` → `https://api.openai.com/v1`
-  - `openai_response` → `https://api.openai.com/v1`
-  - `anthropic` → `https://api.anthropic.com`
+- **协议地址**：添加一个或多个协议端点，填写**完整的 API 地址**（含路径，不要只填到 `/v1`）：
+  - `openai_chat` → `https://api.openai.com/v1/chat/completions`
+  - `openai_response` → `https://api.openai.com/v1/responses`
+  - `anthropic` → `https://api.anthropic.com/v1/messages`
 - **模型与价格**：添加支持的模型，可选配置单价（元/百万 token）
 
 **常见上游源配置参考：**
 
-| 服务商 | 协议 | Base URL |
+| 服务商 | 协议 | 完整 API 地址 |
 |--------|------|----------|
-| OpenAI | openai_chat | `https://api.openai.com/v1` |
-| Anthropic | anthropic | `https://api.anthropic.com` |
-| Azure OpenAI | openai_chat | `https://{resource}.openai.azure.com/openai/deployments/{deployment}` |
-| Ollama（本地） | openai_chat | `http://localhost:11434/v1` |
-| DeepSeek | openai_chat | `https://api.deepseek.com/v1` |
+| OpenAI | openai_chat | `https://api.openai.com/v1/chat/completions` |
+| Anthropic | anthropic | `https://api.anthropic.com/v1/messages` |
+| Azure OpenAI | openai_chat | `https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions` |
+| Ollama（本地） | openai_chat | `http://localhost:11434/v1/chat/completions` |
+| DeepSeek | openai_chat | `https://api.deepseek.com/v1/chat/completions` |
 | 其他兼容服务 | openai_chat | 视具体服务而定 |
 
 ### 第二步：创建模型入口

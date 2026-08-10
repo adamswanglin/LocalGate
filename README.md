@@ -71,21 +71,21 @@ Go to **Sources** → **New Source** to configure an AI provider:
 
 - **Name**: A friendly label (e.g., "OpenAI Official", "Local Ollama")
 - **API Key**: The provider's API key (shared across all endpoints)
-- **Protocol Endpoints**: Add one or more protocol addresses:
-  - `openai_chat` → `https://api.openai.com/v1`
-  - `openai_response` → `https://api.openai.com/v1`
-  - `anthropic` → `https://api.anthropic.com`
+- **Protocol Endpoints**: Add one or more protocol addresses — enter the **full API URL** including the path (not just up to `/v1`):
+  - `openai_chat` → `https://api.openai.com/v1/chat/completions`
+  - `openai_response` → `https://api.openai.com/v1/responses`
+  - `anthropic` → `https://api.anthropic.com/v1/messages`
 - **Models & Pricing**: Add supported models with optional per-token pricing (CNY/million tokens)
 
 **Common source configurations:**
 
-| Provider | Protocol | Base URL |
+| Provider | Protocol | Full API URL |
 |----------|----------|----------|
-| OpenAI | openai_chat | `https://api.openai.com/v1` |
-| Anthropic | anthropic | `https://api.anthropic.com` |
-| Azure OpenAI | openai_chat | `https://{resource}.openai.azure.com/openai/deployments/{deployment}` |
-| Ollama (local) | openai_chat | `http://localhost:11434/v1` |
-| DeepSeek | openai_chat | `https://api.deepseek.com/v1` |
+| OpenAI | openai_chat | `https://api.openai.com/v1/chat/completions` |
+| Anthropic | anthropic | `https://api.anthropic.com/v1/messages` |
+| Azure OpenAI | openai_chat | `https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions` |
+| Ollama (local) | openai_chat | `http://localhost:11434/v1/chat/completions` |
+| DeepSeek | openai_chat | `https://api.deepseek.com/v1/chat/completions` |
 | Other compatible services | openai_chat | Varies |
 
 ### Step 2: Create a Model Entry

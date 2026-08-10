@@ -4,7 +4,7 @@
 
 # LocalGate
 
-**AI API Proxy Gateway — 多模型统一代理，实时日志、费用追踪与用量分析。**
+**A 100% local AI API proxy gateway — runs entirely on your own machine, no cloud, no sign-up. Unify multiple AI providers behind one endpoint with real-time logging, cost tracking, and usage analytics.**
 
 [中文文档](README_zh.md)
 

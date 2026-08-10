@@ -114,6 +114,21 @@ const MESSAGES: Record<string, Entry> = {
   'nav.logsDesc': { 'zh-CN': '请求记录与调试', 'zh-TW': '請求記錄與除錯', en: 'Request history & debugging', ja: 'リクエスト履歴とデバッグ', ko: '요청 기록 및 디버깅' },
   'nav.stats': { 'zh-CN': '统计', 'zh-TW': '統計', en: 'Statistics', ja: '統計', ko: '통계' },
   'nav.statsDesc': { 'zh-CN': '用量与调用统计', 'zh-TW': '用量與呼叫統計', en: 'Usage & call stats', ja: '使用量と呼び出し統計', ko: '사용량 및 호출 통계' },
+  'nav.syslogs': { 'zh-CN': '系统日志', 'zh-TW': '系統日誌', en: 'System Logs', ja: 'システムログ', ko: '시스템 로그' },
+  'nav.syslogsDesc': { 'zh-CN': '近期错误与告警', 'zh-TW': '近期錯誤與告警', en: 'Recent errors & warnings', ja: '最近のエラーと警告', ko: '최근 오류 및 경고' },
+
+  // ── 系统日志 SystemLogs ──
+  'syslogs.title': { 'zh-CN': '系统日志', 'zh-TW': '系統日誌', en: 'System Logs', ja: 'システムログ', ko: '시스템 로그' },
+  'syslogs.subtitle': { 'zh-CN': '近期的错误与告警事件（如模型调用失败、连接超时）；仅保存在内存中的最近 500 条。', 'zh-TW': '近期的錯誤與告警事件（如模型呼叫失敗、連線逾時）；僅保存在記憶體中的最近 500 筆。', en: 'Recent errors & warnings (e.g. model call failures, timeouts). Only the latest 500 entries are kept in memory.', ja: '最近のエラーと警告（モデル呼び出し失敗やタイムアウトなど）。最新500件のみメモリに保持。', ko: '최근 오류 및 경고(모델 호출 실패, 시간 초과 등). 최신 500건만 메모리에 보관.' },
+  'syslogs.clear': { 'zh-CN': '清空', 'zh-TW': '清空', en: 'Clear', ja: 'クリア', ko: '비우기' },
+  'syslogs.refresh': { 'zh-CN': '刷新', 'zh-TW': '重新整理', en: 'Refresh', ja: '更新', ko: '새로고침' },
+  'syslogs.confirmClear': { 'zh-CN': '清空全部系统日志？', 'zh-TW': '清空全部系統日誌？', en: 'Clear all system logs?', ja: 'システムログを全て削除しますか？', ko: '모든 시스템 로그를 비우시겠습니까?' },
+  'syslogs.colTime': { 'zh-CN': '时间', 'zh-TW': '時間', en: 'Time', ja: '時刻', ko: '시간' },
+  'syslogs.colLevel': { 'zh-CN': '级别', 'zh-TW': '級別', en: 'Level', ja: 'レベル', ko: '레벨' },
+  'syslogs.colSource': { 'zh-CN': '来源', 'zh-TW': '來源', en: 'Source', ja: '来源', ko: '출처' },
+  'syslogs.colMessage': { 'zh-CN': '内容', 'zh-TW': '內容', en: 'Message', ja: 'メッセージ', ko: '내용' },
+  'syslogs.empty': { 'zh-CN': '暂无系统日志', 'zh-TW': '暫無系統日誌', en: 'No system logs', ja: 'システムログなし', ko: '시스템 로그 없음' },
+  'syslogs.emptyDesc': { 'zh-CN': '发生错误或告警时会显示在这里', 'zh-TW': '發生錯誤或告警時會顯示在這裡', en: 'Errors and warnings will appear here', ja: 'エラーや警告はここに表示されます', ko: '오류 및 경고가 여기 표시됩니다' },
 
   // ── 协议 ──
   'protocol.chat': { en: 'OpenAI Chat (/v1/chat/completions)', 'zh-CN': 'OpenAI Chat (/v1/chat/completions)', 'zh-TW': 'OpenAI Chat (/v1/chat/completions)', ja: 'OpenAI Chat (/v1/chat/completions)', ko: 'OpenAI Chat (/v1/chat/completions)' },
@@ -149,10 +164,11 @@ const MESSAGES: Record<string, Entry> = {
   'sources.modalCreate': { 'zh-CN': '新增源', 'zh-TW': '新增源', en: 'New Source', ja: 'ソース追加', ko: '소스 추가' },
   'sources.fieldName': { 'zh-CN': '名称', 'zh-TW': '名稱', en: 'Name', ja: '名前', ko: '이름' },
   'sources.fieldApiKey': { 'zh-CN': 'API Key（所有协议地址共用一把）', 'zh-TW': 'API Key（所有協議位址共用一把）', en: 'API Key (shared by all endpoints)', ja: 'API Key（全エンドポイント共通）', ko: 'API Key (모든 엔드포인트 공통)' },
-  'sources.endpointsLabel': { 'zh-CN': '协议地址（每个协议独立 Base URL，共用一把 API Key）', 'zh-TW': '協議位址（每個協議獨立 Base URL，共用一把 API Key）', en: 'Endpoints (one Base URL per protocol, shared API Key)', ja: 'エンドポイント（プロトコルごとに Base URL、API Key は共通）', ko: '엔드포인트 (프로토콜별 Base URL, API Key 공통)' },
+  'sources.endpointsLabel': { 'zh-CN': '协议地址（每个协议填完整 API 地址，共用一把 API Key）', 'zh-TW': '協議位址（每個協議填完整 API 位址，共用一把 API Key）', en: 'Endpoints (full API URL per protocol, shared API Key)', ja: 'エンドポイント（プロトコルごとに完全な API URL、API Key は共通）', ko: '엔드포인트 (프로토콜별 전체 API URL, API Key 공통)' },
   'sources.endpointsEmpty': { 'zh-CN': '尚未配置协议地址，请至少添加一个。', 'zh-TW': '尚未設定協議位址，請至少新增一個。', en: 'No endpoints yet — add at least one.', ja: 'エンドポイント未設定・少なくとも1つ追加してください。', ko: '엔드포인트가 없습니다 — 최소 하나를 추가하세요.' },
   'sources.addEndpoint': { 'zh-CN': '添加协议地址', 'zh-TW': '新增協議位址', en: 'Add Endpoint', ja: 'エンドポイント追加', ko: '엔드포인트 추가' },
-  'sources.modelsLabel': { 'zh-CN': '模型与价格（元/百万 token；模型入口绑定上游后从这些模型中选择）', 'zh-TW': '模型與價格（元/百萬 token；模型入口綁定上游後從這些模型中選擇）', en: 'Models & prices (CNY/M tokens; model entries pick from these when binding)', ja: 'モデルと価格（元/百万トークン、モデルエントリは上流バインド時にここから選択）', ko: '모델 및 가격 (위안/백만 토큰; 모델 엔트리는 업스트림 바인딩 시 여기서 선택)' },
+  'sources.urlHint': { 'zh-CN': '填完整的 API 地址，含路径（不要只填到 /v1）', 'zh-TW': '填完整的 API 位址，含路徑（不要只填到 /v1）', en: 'Full API URL including path (not just up to /v1)', ja: 'パスを含む完全な API URL（/v1 までにしない）', ko: '경로를 포함한 전체 API URL (/v1까지만 X)' },
+  'sources.modelsLabel': { 'zh-CN': '模型与价格（/百万 token；模型入口绑定上游后从这些模型中选择）', 'zh-TW': '模型與價格（/百萬 token；模型入口綁定上游後從這些模型中選擇）', en: 'Models & prices (per M tokens; model entries pick from these when binding)', ja: 'モデルと価格（/百万トークン、モデルエントリは上流バインド時にここから選択）', ko: '모델 및 가격 (/백만 토큰; 모델 엔트리는 업스트림 바인딩 시 여기서 선택)' },
   'sources.modelsEmpty': { 'zh-CN': '尚未配置模型，请添加。', 'zh-TW': '尚未設定模型，請新增。', en: 'No models yet — add one.', ja: 'モデル未設定・追加してください。', ko: '모델이 없습니다 — 추가하세요.' },
   'sources.addModel': { 'zh-CN': '添加模型', 'zh-TW': '新增模型', en: 'Add Model', ja: 'モデル追加', ko: '모델 추가' },
   'sources.priceInput': { 'zh-CN': '输入（非缓存）', 'zh-TW': '輸入（非快取）', en: 'Input (uncached)', ja: '入力（非キャッシュ）', ko: '입력 (캐시 미사용)' },
@@ -160,9 +176,9 @@ const MESSAGES: Record<string, Entry> = {
   'sources.priceOutput': { 'zh-CN': '输出', 'zh-TW': '輸出', en: 'Output', ja: '出力', ko: '출력' },
   'sources.placeholderUrl': { en: 'https://...', 'zh-CN': 'https://...', 'zh-TW': 'https://...', ja: 'https://...', ko: 'https://...' },
   'sources.placeholderModel': { 'zh-CN': '上游模型名，如 doubao-seed-2.0-pro', 'zh-TW': '上游模型名，如 doubao-seed-2.0-pro', en: 'Upstream model name, e.g. gpt-4o', ja: '上流モデル名（例: gpt-4o）', ko: '업스트림 모델명, 예: gpt-4o' },
-  'sources.placeholderPrice': { 'zh-CN': '元/百万', 'zh-TW': '元/百萬', en: 'CNY/M', ja: '元/百万', ko: '위안/백만' },
+  'sources.placeholderPrice': { 'zh-CN': '/百万', 'zh-TW': '/百萬', en: '/M', ja: '/百万', ko: '/백만' },
   'sources.alertNameKey': { 'zh-CN': '请填写名称和 API Key', 'zh-TW': '請填寫名稱和 API Key', en: 'Please fill in name and API Key', ja: '名前と API Key を入力してください', ko: '이름과 API Key를 입력하세요' },
-  'sources.alertEndpoint': { 'zh-CN': '请至少配置一个完整的协议地址（协议 + Base URL）', 'zh-TW': '請至少設定一個完整的協議位址（協議 + Base URL）', en: 'Please configure at least one complete endpoint (protocol + Base URL)', ja: '完全なエンドポイント（プロトコル + Base URL）を少なくとも1つ設定してください', ko: '최소 하나의 완전한 엔드포인트(프로토콜 + Base URL)를 설정하세요' },
+  'sources.alertEndpoint': { 'zh-CN': '请至少配置一个完整的协议地址（协议 + 完整 API 地址）', 'zh-TW': '請至少設定一個完整的協議位址（協議 + 完整 API 位址）', en: 'Please configure at least one complete endpoint (protocol + full API URL)', ja: '完全なエンドポイント（プロトコル + 完全な API URL）を少なくとも1つ設定してください', ko: '최소 하나의 완전한 엔드포인트(프로토콜 + 전체 API URL)를 설정하세요' },
   'sources.confirmDelete': { 'zh-CN': '确认删除该上游源？', 'zh-TW': '確認刪除該上游源？', en: 'Delete this upstream source?', ja: 'この上流ソースを削除しますか？', ko: '이 업스트림 소스를 삭제하시겠습니까?' },
 
   // ── 模型入口 Model Entries ──
@@ -180,7 +196,7 @@ const MESSAGES: Record<string, Entry> = {
   'modelEntries.confirmDeleteGroup': { 'zh-CN': '确认删除该模型？将移除其所有 API 类型与上游绑定。', 'zh-TW': '確認刪除該模型？將移除其所有 API 類型與上游綁定。', en: 'Delete this model? All its API types and upstream bindings will be removed.', ja: 'このモデルを削除しますか？すべての API タイプと上流バインドが削除されます。', ko: '이 모델을 삭제하시겠습니까? 모든 API 타입과 업스트림 바인딩이 제거됩니다.' },
   'modelEntries.colModel': { 'zh-CN': '对外模型名', 'zh-TW': '對外模型名', en: 'Exposed Model', ja: '公開モデル', ko: '노출 모델' },
   'modelEntries.colUpstream': { 'zh-CN': '当前上游', 'zh-TW': '當前上游', en: 'Active Upstream', ja: '現在の上流', ko: '활성 업스트림' },
-  'modelEntries.colPrice': { 'zh-CN': '价格 (元/百万)', 'zh-TW': '價格 (元/百萬)', en: 'Price (CNY/M)', ja: '価格 (元/百万)', ko: '가격 (위안/백만)' },
+  'modelEntries.colPrice': { 'zh-CN': '价格 (/百万)', 'zh-TW': '價格 (/百萬)', en: 'Price (/M)', ja: '価格 (/百万)', ko: '가격 (/백만)' },
   'modelEntries.colStatus': { 'zh-CN': '状态', 'zh-TW': '狀態', en: 'Status', ja: 'ステータス', ko: '상태' },
   'modelEntries.colActions': { 'zh-CN': '操作', 'zh-TW': '操作', en: 'Actions', ja: '操作', ko: '작업' },
   'modelEntries.empty': { 'zh-CN': '暂无模型', 'zh-TW': '暫無模型', en: 'No models yet', ja: 'モデルがありません', ko: '모델이 없습니다' },
@@ -211,6 +227,7 @@ const MESSAGES: Record<string, Entry> = {
   'modelEntries.alertBindingRows': { 'zh-CN': '每个绑定都需要选择上游源和模型', 'zh-TW': '每個綁定都需要選擇上游源和模型', en: 'Each binding needs a source and model', ja: '各バインドにソースとモデルを選択', ko: '각 바인딩마다 소스와 모델을 선택' },
   'modelEntries.confirmDelete': { 'zh-CN': '确认删除该模型入口？', 'zh-TW': '確認刪除該模型入口？', en: 'Delete this model entry?', ja: 'このモデルエントリを削除しますか？', ko: '이 모델 엔트리를 삭제하시겠습니까?' },
   'modelEntries.alertSwitchFailed': { 'zh-CN': '切换失败', 'zh-TW': '切換失敗', en: 'Switch failed', ja: '切替失敗', ko: '전환 실패' },
+  'modelEntries.testPrompt': { 'zh-CN': '请输入一个上游支持的模型名用于连通测试：', 'zh-TW': '請輸入一個上游支援的模型名用於連通測試：', en: 'Enter a model name supported by the upstream for connectivity test:', ja: '上流が対応するモデル名を入力して接続テスト：', ko: '업스트림이 지원하는 모델 이름을 입력해 연결 테스트:' },
 
   // ── 访问令牌 Tokens ──
   'tokens.title': { 'zh-CN': '访问令牌', 'zh-TW': '存取權杖', en: 'Access Tokens', ja: 'アクセストークン', ko: '액세스 토큰' },
@@ -245,12 +262,16 @@ const MESSAGES: Record<string, Entry> = {
   'logs.title': { 'zh-CN': '调用日志', 'zh-TW': '呼叫日誌', en: 'Call Logs', ja: 'コールログ', ko: '호출 로그' },
   'logs.total': { 'zh-CN': '共 {total} 条记录', 'zh-TW': '共 {total} 筆記錄', en: '{total} records', ja: '{total} 件', ko: '{total}건' },
   'logs.clear': { 'zh-CN': '清空', 'zh-TW': '清空', en: 'Clear', ja: 'クリア', ko: '비우기' },
+  'logs.refresh': { 'zh-CN': '刷新', 'zh-TW': '重新整理', en: 'Refresh', ja: '更新', ko: '새로고침' },
   'logs.confirmClear': { 'zh-CN': '清空全部非收藏调用日志？收藏的记录会保留。此操作不可恢复。', 'zh-TW': '清空全部非收藏呼叫日誌？收藏的記錄會保留。此操作不可恢復。', en: 'Clear all non-starred logs? Starred records are kept. This cannot be undone.', ja: '非スターのコールログを全削除？スター付きは保持、元に戻せません。', ko: '별표 없는 호출 로그를 모두 비우시겠습니까? 별표 항목은 유지됩니다. 되돌릴 수 없습니다.' },
   'logs.globalConfig': { 'zh-CN': '全局配置', 'zh-TW': '全域設定', en: 'Global Config', ja: 'グローバル設定', ko: '전역 설정' },
   'logs.logIo': { 'zh-CN': '记录出入参', 'zh-TW': '記錄出入參', en: 'Log requests & responses', ja: 'リクエスト・レスポンスを記録', ko: '요청·응답 기록' },
   'logs.logStreamBody': { 'zh-CN': '捕获流式 body', 'zh-TW': '捕獲串流 body', en: 'Capture stream body', ja: 'ストリーム body を取得', ko: '스트림 body 캡처' },
   'logs.logCap': { 'zh-CN': '日志上限', 'zh-TW': '日誌上限', en: 'Log limit', ja: 'ログ上限', ko: '로그 한도' },
   'logs.logCapHint': { 'zh-CN': '非收藏日志达到该数量后自动清理最旧的（100–1,000,000）', 'zh-TW': '非收藏日誌達到該數量後自動清理最舊的（100–1,000,000）', en: 'Auto-trims oldest non-starred logs beyond this count (100–1,000,000)', ja: '非スターログがこの件数を超えると古いものから自動削除（100–1,000,000）', ko: '즐겨찾기 외 로그가 이 수를 넘기면 오래된 순으로 자동 정리(100–1,000,000)' },
+  'logs.proxyUrl': { 'zh-CN': '出站代理', 'zh-TW': '出口代理', en: 'Outbound Proxy', ja: '送信プロキシ', ko: '아웃바운드 프록시' },
+  'logs.proxyUrlHint': { 'zh-CN': '访问上游用的 HTTP 代理（如 http://127.0.0.1:7890）；留空直连', 'zh-TW': '存取上游用的 HTTP 代理（如 http://127.0.0.1:7890）；留空直連', en: 'HTTP proxy for upstream calls (e.g. http://127.0.0.1:7890); empty = direct', ja: '上流アクセス用 HTTP プロキシ（例: http://127.0.0.1:7890）、空欄で直接接続', ko: '업스트림 호출용 HTTP 프록시(예: http://127.0.0.1:7890), 비우면 직접 연결' },
+  'logs.proxyPlaceholder': { 'zh-CN': 'http://127.0.0.1:7890', 'zh-TW': 'http://127.0.0.1:7890', en: 'http://127.0.0.1:7890', ja: 'http://127.0.0.1:7890', ko: 'http://127.0.0.1:7890' },
   'logs.statTotal': { 'zh-CN': '总记录', 'zh-TW': '總記錄', en: 'Total', ja: '合計', ko: '합계' },
   'logs.statAvgLatency': { 'zh-CN': '平均耗时', 'zh-TW': '平均耗時', en: 'Avg Latency', ja: '平均レイテンシ', ko: '평균 지연' },
   'logs.statErrors': { 'zh-CN': '错误数', 'zh-TW': '錯誤數', en: 'Errors', ja: 'エラー数', ko: '오류 수' },
@@ -333,7 +354,9 @@ const MESSAGES: Record<string, Entry> = {
   'stats.statCached': { 'zh-CN': '输入 Token (缓存)', 'zh-TW': '輸入 Token (快取)', en: 'Input Tokens (cached)', ja: '入力トークン (キャッシュ)', ko: '입력 토큰 (캐시)' },
   'stats.statOutput': { 'zh-CN': '输出 Token', 'zh-TW': '輸出 Token', en: 'Output Tokens', ja: '出力トークン', ko: '출력 토큰' },
   'stats.statCalls': { 'zh-CN': '调用次数', 'zh-TW': '呼叫次數', en: 'Calls', ja: '呼び出し回数', ko: '호출 수' },
-  'stats.statCost': { 'zh-CN': '总费用 (元)', 'zh-TW': '總費用 (元)', en: 'Total Cost (CNY)', ja: '総コスト (元)', ko: '총 비용 (위안)' },
+  'stats.statErrors': { 'zh-CN': '调用错误', 'zh-TW': '呼叫錯誤', en: 'Errors', ja: '呼び出しエラー', ko: '호출 오류' },
+  'stats.statErrorRate': { 'zh-CN': '错误率', 'zh-TW': '錯誤率', en: 'Error rate', ja: 'エラー率', ko: '오류율' },
+  'stats.statCost': { 'zh-CN': '总费用', 'zh-TW': '總費用', en: 'Total Cost', ja: '総コスト', ko: '총 비용' },
   'stats.filterTitle': { 'zh-CN': '筛选条件', 'zh-TW': '篩選條件', en: 'Filters', ja: 'フィルタ', ko: '필터' },
   'stats.filterProtocol': { 'zh-CN': '协议', 'zh-TW': '協議', en: 'Protocol', ja: 'プロトコル', ko: '프로토콜' },
   'stats.filterAllProtocols': { 'zh-CN': '全部协议', 'zh-TW': '全部協議', en: 'All Protocols', ja: '全プロトコル', ko: '전체 프로토콜' },
@@ -358,7 +381,8 @@ const MESSAGES: Record<string, Entry> = {
   'stats.tableCached': { 'zh-CN': '输入(缓存)', 'zh-TW': '輸入(快取)', en: 'Input (cached)', ja: '入力(キャッシュ)', ko: '입력(캐시)' },
   'stats.tableOutput': { 'zh-CN': '输出', 'zh-TW': '輸出', en: 'Output', ja: '出力', ko: '출력' },
   'stats.tableCalls': { 'zh-CN': '调用次数', 'zh-TW': '呼叫次數', en: 'Calls', ja: '呼び出し回数', ko: '호출 수' },
-  'stats.tableCost': { 'zh-CN': '费用 (元)', 'zh-TW': '費用 (元)', en: 'Cost (CNY)', ja: 'コスト (元)', ko: '비용 (위안)' },
+  'stats.tableErrors': { 'zh-CN': '错误数', 'zh-TW': '錯誤數', en: 'Errors', ja: 'エラー数', ko: '오류 수' },
+  'stats.tableCost': { 'zh-CN': '费用', 'zh-TW': '費用', en: 'Cost', ja: 'コスト', ko: '비용' },
   'stats.total': { 'zh-CN': '合计', 'zh-TW': '合計', en: 'Total', ja: '合計', ko: '합계' },
   'stats.stackDim1': { 'zh-CN': '上游每日用量（按上游堆叠）', 'zh-TW': '上游每日用量（按上游堆疊）', en: 'Per-source daily usage (stacked by source)', ja: 'ソース別日次使用量（ソースで積み上げ）', ko: '소스별 일일 사용량 (소스별 적재)' },
   'stats.stackDim2': { 'zh-CN': '上游·模型用量（按模型堆叠）', 'zh-TW': '上游·模型用量（按模型堆疊）', en: 'Source × model usage (stacked by model)', ja: 'ソース・モデル使用量（モデルで積み上げ）', ko: '소스·모델 사용량 (모델별 적재)' },
@@ -368,6 +392,7 @@ const MESSAGES: Record<string, Entry> = {
   'stats.stackDesc': { 'zh-CN': '多维度构成分析', 'zh-TW': '多維度構成分析', en: 'Multi-dimensional composition analysis', ja: '多次元構成分析', ko: '다차원 구성 분석' },
   'stats.stackToken': { en: 'Tokens', 'zh-CN': 'Token', 'zh-TW': 'Token', ja: 'トークン', ko: '토큰' },
   'stats.stackCalls': { 'zh-CN': '调用次数', 'zh-TW': '呼叫次數', en: 'Calls', ja: '呼び出し回数', ko: '호출 수' },
+  'stats.stackErrors': { 'zh-CN': '错误数', 'zh-TW': '錯誤數', en: 'Errors', ja: 'エラー数', ko: '오류 수' },
   'stats.stackCost': { 'zh-CN': '费用', 'zh-TW': '費用', en: 'Cost', ja: 'コスト', ko: '비용' },
   'stats.stackPickSource': { 'zh-CN': '请选择上游', 'zh-TW': '請選擇上游', en: 'Select a source', ja: 'ソースを選択', ko: '소스를 선택' },
   'stats.stackPickSourceDesc': { 'zh-CN': '该维度需选定单个上游源', 'zh-TW': '該維度需選定單個上游源', en: 'This dimension requires a single source', ja: 'この次元は単一ソースが必要', ko: '이 차원은 단일 소스가 필요' },
@@ -420,7 +445,7 @@ export function fmtDate(s: string): string {
 }
 
 export function fmtMoney(v: number): string {
-  if (!Number.isFinite(v) || v <= 0) return '¥0';
+  if (!Number.isFinite(v) || v <= 0) return '$0';
   const s = v.toFixed(4).replace(/\.?0+$/, '');
-  return `¥${s}`;
+  return `$${s}`;
 }

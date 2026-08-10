@@ -88,6 +88,7 @@ export interface Settings {
   logIo: boolean;
   logStreamBody: boolean;
   logCap: number;
+  proxyUrl: string;
 }
 
 export interface LogRow {
@@ -130,11 +131,12 @@ export interface StatRow {
   outputTokens: number;
   cost: number;
   calls: number;
+  errorCalls: number;
 }
 export interface StatsResult {
   groupBy: string;
   rows: StatRow[];
-  totals: { inputTokens: number; cachedInputTokens: number; outputTokens: number; cost: number; calls: number };
+  totals: { inputTokens: number; cachedInputTokens: number; outputTokens: number; cost: number; calls: number; errorCalls: number };
 }
 
 export interface StackedSeries {
@@ -148,6 +150,15 @@ export interface StackedStatsResult {
   metric: string;
   labels: string[];
   stacks: StackedSeries[];
+}
+
+export interface SyslogEntry {
+  id: number;
+  ts: string;
+  level: 'error' | 'warn';
+  source: string;
+  message: string;
+  detail?: string;
 }
 
 export const api = {
@@ -171,10 +182,14 @@ export const api = {
   },
   modelGroups: {
     // 整组（一个 exposedModel 下多协议）原子保存；返回该组的全部 channel。
-    // PUT/DELETE 用 body.key 传旧 exposedModel，兼容空串/特殊字符
+    // PUT/DELETE 用 body.key 传旧 exposedModel，兼容空/特殊字符
     create: (b: any) => req<ModelEntry[]>('/api/model-groups', { method: 'POST', body: JSON.stringify(b) }),
     update: (key: string, b: any) => req<ModelEntry[]>('/api/model-groups', { method: 'PUT', body: JSON.stringify({ key, ...b }) }),
     remove: (key: string) => req('/api/model-groups', { method: 'DELETE', body: JSON.stringify({ key }) }),
+    test: (exposedModel: string, model: string) =>
+      req<{ protocol: string; ok: boolean; status?: number; sample?: string; error?: string; results?: any[] }>(
+        '/api/model-groups/test', { method: 'POST', body: JSON.stringify({ exposedModel, model }) },
+      ),
   },
   tokens: {
     list: () => req<Token[]>('/api/tokens'),
@@ -202,5 +217,10 @@ export const api = {
       req<{ id: number; tags: string[] }>(`/api/logs/${id}/tags`, { method: 'PATCH', body: JSON.stringify({ tags }) }),
     setStar: (id: number, starred: boolean) =>
       req<{ id: number; starred: boolean }>(`/api/logs/${id}/star`, { method: 'PATCH', body: JSON.stringify({ starred }) }),
+  },
+  systemLogs: {
+    list: (limit = 200) =>
+      req<{ rows: SyslogEntry[] }>(`/api/system-logs?limit=${limit}`),
+    clear: () => req('/api/system-logs', { method: 'DELETE' }),
   },
 };

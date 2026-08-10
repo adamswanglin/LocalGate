@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
-import { Plug, KeyRound, ScrollText, BarChart3, ExternalLink, Download, RefreshCw, X, Github } from 'lucide-react';
+import { Plug, KeyRound, ScrollText, BarChart3, ExternalLink, Download, RefreshCw, X, Github, ShieldAlert } from 'lucide-react';
 import { t } from './lib/i18n.js';
 import { useI18n } from './lib/i18n-provider.js';
 import LanguageSwitcher from './components/LanguageSwitcher.js';
@@ -9,12 +9,14 @@ import ModelEntriesPage from './pages/ModelEntries.js';
 import LogsPage from './pages/Logs.js';
 import LogDetailPage from './pages/LogDetail.js';
 import StatsPage from './pages/Stats.js';
+import SystemLogsPage from './pages/SystemLogs.js';
 
 const nav = [
   { to: '/sources', label: 'nav.sources', desc: 'nav.sourcesDesc', icon: Plug },
   { to: '/model-entries', label: 'nav.modelEntries', desc: 'nav.modelEntriesDesc', icon: KeyRound },
   { to: '/logs', label: 'nav.logs', desc: 'nav.logsDesc', icon: ScrollText },
   { to: '/stats', label: 'nav.stats', desc: 'nav.statsDesc', icon: BarChart3 },
+  { to: '/system-logs', label: 'nav.syslogs', desc: 'nav.syslogsDesc', icon: ShieldAlert },
 ];
 
 const isElectron =
@@ -152,6 +154,7 @@ export default function App() {
             <Route path="/logs" element={<LogsPage />} />
             <Route path="/logs/:id" element={<LogDetailPage />} />
             <Route path="/stats" element={<StatsPage />} />
+            <Route path="/system-logs" element={<SystemLogsPage />} />
           </Routes>
           </div>
         </main>

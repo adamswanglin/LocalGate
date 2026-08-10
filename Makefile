@@ -3,7 +3,8 @@
 # 常用：
 #   make            全流程：安装依赖 → 重编原生模块 → 构建 → 打包当前平台
 #   make run        开发态直接启动桌面壳（DB 走 .run/）
-#   make dist       仅打包当前平台（需先 make build）
+#   make dist       打包当前平台（内含 build）
+#   make dist-mac   打包 macOS arm64 + x64（内含 build）
 #   make dist-mac   打包 macOS arm64 + x64（仅 macOS 可执行）
 #   make dist-win   打包 Windows x64（仅 Windows 可执行）
 #   make dist-linux 打包 Linux x64（仅 Linux 可执行）
@@ -42,22 +43,23 @@ dist:
 	@ls -lh $(RELEASE) 2>/dev/null || true
 
 ## 打包 macOS arm64 + x64（Universal 需两台机器或 CI）
-dist-mac:
+## 注意：必须先 build，否则打的是旧 dist/ 产物
+dist-mac: build
 	$(PKG) exec electron-builder --mac --arm64 --x64
 	@echo "✔ macOS 产物见 $(RELEASE)/"
 
 ## 打包 Windows x64（NSIS 安装包）
-dist-win:
+dist-win: build
 	$(PKG) exec electron-builder --win --x64
 	@echo "✔ Windows 产物见 $(RELEASE)/"
 
 ## 打包 Linux x64（AppImage）
-dist-linux:
+dist-linux: build
 	$(PKG) exec electron-builder --linux --x64
 	@echo "✔ Linux 产物见 $(RELEASE)/"
 
 ## 打包当前平台所有架构
-dist-all:
+dist-all: build
 	$(PKG) exec electron-builder
 	@echo "✔ 产物见 $(RELEASE)/"
 	@ls -lh $(RELEASE) 2>/dev/null || true

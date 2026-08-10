@@ -1,11 +1,16 @@
 import { Hono } from 'hono';
-import { db, schema } from '../db/index.js';
+import { Agent, ProxyAgent } from 'undici';
+import { db, schema, sqlite } from '../db/index.js';
 import { eq, and } from 'drizzle-orm';
 import { Protocol, PROTOCOLS } from '../lib/protocol.js';
 import { normalizeUsage, type NormalizedUsage } from '../lib/usage.js';
 import { enqueueWrite } from '../lib/log-writer.js';
+import { logSystemError, logSystemWarn } from '../lib/syslog.js';
 
 const proxy = new Hono();
+
+/** 上游连接超时（TCP 连接建立阶段）：5s。 */
+const CONNECT_TIMEOUT_MS = 5000;
 
 interface ResolvedChannel {
   id: number;
@@ -21,6 +26,7 @@ interface GlobalSettings {
   logIo: boolean;
   logStreamBody: boolean;
   logCap: number;
+  proxyUrl: string;
 }
 
 /** 上游模型价格（元/百万 token）；未配置为 null */
@@ -31,6 +37,23 @@ interface Pricing {
 }
 
 const NULL_PRICING: Pricing = { inputPrice: null, cachedInputPrice: null, outputPrice: null };
+
+const ZERO_USAGE: NormalizedUsage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
+
+/* ---------------- 上游 fetch 分发器（连接超时 + 出站代理） ---------------- */
+
+// 根据 settings.proxyUrl 构造 undici 分发器；proxyUrl 变化时重建。
+let currentDispatcher: Agent | ProxyAgent | null = null;
+let currentProxyUrl = '\0'; // 哨兵：保证首次构造
+export function getDispatcher(proxyUrl?: string): Agent | ProxyAgent {
+  const p = proxyUrl && proxyUrl.trim() ? proxyUrl.trim() : '';
+  if (currentDispatcher && p === currentProxyUrl) return currentDispatcher;
+  currentProxyUrl = p;
+  currentDispatcher = p
+    ? new ProxyAgent({ uri: p, connect: { timeout: CONNECT_TIMEOUT_MS } })
+    : new Agent({ connect: { timeout: CONNECT_TIMEOUT_MS } });
+  return currentDispatcher;
+}
 
 /* ---------------- settings 缓存 ---------------- */
 
@@ -46,6 +69,7 @@ async function loadSettings(): Promise<GlobalSettings> {
     logIo: s ? !!s.logIo : true,
     logStreamBody: s ? !!s.logStreamBody : true,
     logCap: s ? s.logCap : 10000,
+    proxyUrl: s?.proxyUrl ?? '',
   };
   return settingsCache!;
 }
@@ -153,9 +177,9 @@ function parseBody(text: string): Record<string, any> | null {
   }
 }
 
-function buildUpstreamUrl(baseUrl: string, protocol: Protocol): string {
-  const base = baseUrl.replace(/\/+$/, '');
-  return base + PROTOCOLS[protocol].upstreamSuffix;
+function buildUpstreamUrl(baseUrl: string, _protocol: Protocol): string {
+  // source 存的是完整 API 地址，仅去掉尾部斜杠直接使用
+  return baseUrl.replace(/\/+$/, '');
 }
 
 function buildUpstreamHeaders(protocol: Protocol, apiKey: string, incoming: Headers): Headers {
@@ -258,7 +282,9 @@ async function handleProxy(c: any, protocol: Protocol) {
   };
 
   // 改写 model：对外模型名 → 上游真实模型名（来自上游源配置）
-  reqObj.model = sourceModel.model;
+  // upstreamModel 用于日志/统计记录（入口已由 channel 标识，model 列记真实上游模型）
+  const upstreamModel = sourceModel.model;
+  reqObj.model = upstreamModel;
   const outReqBody = JSON.stringify(reqObj);
 
   const upstreamUrl = buildUpstreamUrl(endpoint.baseUrl, protocol);
@@ -269,27 +295,46 @@ async function handleProxy(c: any, protocol: Protocol) {
 
   let upstreamRes: Response;
   try {
+    // dispatcher 提供：连接超时 5s、可选出站代理
     upstreamRes = await fetch(upstreamUrl, {
       method: 'POST',
       headers: upstreamHeaders,
       body: outReqBody,
+      // @ts-expect-error Node 的 fetch（undici）支持 dispatcher 选项
+      dispatcher: getDispatcher(settings.proxyUrl),
     });
   } catch (err: any) {
     const latency = Date.now() - startedAt;
+    const msg = err?.name === 'HeadersTimeoutError' || /timeout/i.test(err?.name || '')
+      ? `upstream connect timeout (${CONNECT_TIMEOUT_MS}ms)`
+      : err.message;
+    // 统计始终记录（连接失败计 1 次调用 + 1 次错误）
+    recordStats({ channel, source, protocol, model: upstreamModel, isError: true, usage: ZERO_USAGE, costs: null });
+    logSystemError('proxy', `上游调用失败 [${exposedModel}]`, {
+      protocol,
+      source: source.name,
+      upstreamModel,
+      url: upstreamUrl,
+      host: safeHost(upstreamUrl),
+      error: msg,
+      latency,
+    });
     if (settings.logIo) {
-      insertLog(channel, source, protocol, exposedModel, isStream, 502, latency, reqBody, null, null, err.message, false, null, pricing);
+      insertLog(channel, source, protocol, upstreamModel, isStream, 502, latency, reqBody, null, null, msg, false, null, pricing);
     }
-    return c.json({ error: 'upstream fetch failed', detail: err.message }, 502);
+    return c.json({ error: 'upstream fetch failed', detail: msg }, 502);
   }
 
   const latency = Date.now() - startedAt;
   const status = upstreamRes.status;
 
-  // 错误响应（>=400）：直接透传上游错误
+  // 错误响应（>=400）：直接透传上游错误（状态码、body、关键 header 原样返回）
   if (status >= 400) {
     const text = await upstreamRes.text();
+    recordStats({ channel, source, protocol, model: upstreamModel, isError: true, usage: ZERO_USAGE, costs: null });
+    logSystemWarnProxy(protocol, exposedModel, status, upstreamUrl, source.name, upstreamModel, text);
     if (settings.logIo) {
-      insertLog(channel, source, protocol, exposedModel, isStream, status, latency, reqBody, text, null, text, false, null, pricing);
+      insertLog(channel, source, protocol, upstreamModel, isStream, status, latency, reqBody, text, null, text, false, null, pricing);
     }
     return new Response(text, { status, headers: forwardHeaders(upstreamRes.headers) });
   }
@@ -299,9 +344,14 @@ async function handleProxy(c: any, protocol: Protocol) {
     const text = await upstreamRes.text();
     let usage: any = null;
     try { usage = JSON.parse(text).usage ?? null; } catch { /* ignore */ }
+    const norm = normalizeUsage(usage, protocol);
+    const costs = computeCost(norm, pricing);
+
+    // 统计始终记录（成功调用）
+    recordStats({ channel, source, protocol, model: upstreamModel, isError: false, usage: norm, costs });
 
     if (settings.logIo) {
-      insertLog(channel, source, protocol, exposedModel, isStream, status, latency, reqBody, text, null, null, false, usage, pricing);
+      insertLog(channel, source, protocol, upstreamModel, isStream, status, latency, reqBody, text, null, null, false, usage, pricing);
     }
 
     const headers = new Headers();
@@ -310,16 +360,15 @@ async function handleProxy(c: any, protocol: Protocol) {
   }
 
   // ── 流式：纯透传 ──
+  // 始终 tee 一份用于解析 usage、落统计（关闭日志也不影响统计）；
+  // 仅在 logIo 开启时才写调用日志。
   const wantBody = settings.logStreamBody;
+  const logIo = settings.logIo;
   const [forClient, forLog] = upstreamRes.body.tee();
 
-  if (settings.logIo) {
-    collectAndLog(forLog, {
-      channel, source, protocol, model: exposedModel, isStream: true, status, latency, reqBody, wantBody, pricing,
-    }).catch(() => { /* swallow */ });
-  } else {
-    forLog.cancel().catch(() => {});
-  }
+  collectStream(forLog, {
+    channel, source, protocol, model: upstreamModel, status, latency, reqBody, wantBody, logIo, pricing,
+  }).catch(() => { /* swallow */ });
 
   const headers = new Headers();
   headers.set('content-type', 'text/event-stream');
@@ -328,20 +377,57 @@ async function handleProxy(c: any, protocol: Protocol) {
   return new Response(forClient, { status, headers });
 }
 
+/** 从 URL 中提取 host（失败回退原串），用于日志里标识「调了哪个域名」。 */
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host || url;
+  } catch {
+    return url;
+  }
+}
+
+/** 截断超长字符串，避免单条日志把环形缓冲撑爆。 */
+function truncate(s: string | null | undefined, max = 1000): string | undefined {
+  if (!s) return undefined;
+  const t = s.length > max ? s.slice(0, max) + `…(+${s.length - max})` : s;
+  return t;
+}
+
+/** 4xx/5xx 仅告警级系统日志（避免刷屏错误级） */
+function logSystemWarnProxy(
+  protocol: Protocol,
+  model: string,
+  status: number,
+  url: string,
+  sourceName: string,
+  upstreamModel: string,
+  errorBody: string | null,
+) {
+  logSystemWarn('proxy', `上游返回 ${status} [${model}]`, {
+    protocol,
+    status,
+    source: sourceName,
+    upstreamModel,
+    host: safeHost(url),
+    url,
+    error: truncate(errorBody),
+  });
+}
+
 function forwardHeaders(h: Headers): Headers {
   const out = new Headers();
-  for (const k of ['content-type', 'cache-control', 'connection', 'transfer-encoding', 'x-request-id']) {
+  for (const k of ['content-type', 'cache-control', 'connection', 'transfer-encoding', 'x-request-id', 'retry-after']) {
     const v = h.get(k);
     if (v) out.set(k, v);
   }
   return out;
 }
 
-async function collectAndLog(
+async function collectStream(
   stream: ReadableStream<Uint8Array>,
   ctx: {
     channel: ResolvedChannel; source: any; protocol: Protocol; model: string;
-    isStream: boolean; status: number; latency: number; reqBody: string; wantBody: boolean;
+    status: number; latency: number; reqBody: string; wantBody: boolean; logIo: boolean;
     pricing: Pricing;
   },
 ) {
@@ -361,16 +447,68 @@ async function collectAndLog(
   }
 
   const { chunks, usage } = parseSse(raw);
-  insertLog(
-    ctx.channel, ctx.source, ctx.protocol, ctx.model, true, ctx.status, ctx.latency,
-    ctx.reqBody,
-    ctx.wantBody ? raw : null,
-    ctx.wantBody && chunks.length ? JSON.stringify(chunks) : null,
-    ctx.status >= 400 ? raw : null,
-    aborted,
-    usage,
-    ctx.pricing,
-  );
+  const norm = normalizeUsage(usage, ctx.protocol);
+  const costs = computeCost(norm, ctx.pricing);
+
+  // 统计始终记录（关闭日志不影响）
+  recordStats({
+    channel: ctx.channel, source: ctx.source, protocol: ctx.protocol, model: ctx.model,
+    isError: ctx.status >= 400, usage: norm, costs,
+  });
+
+  if (ctx.logIo) {
+    insertLog(
+      ctx.channel, ctx.source, ctx.protocol, ctx.model, true, ctx.status, ctx.latency,
+      ctx.reqBody,
+      ctx.wantBody ? raw : null,
+      ctx.wantBody && chunks.length ? JSON.stringify(chunks) : null,
+      ctx.status >= 400 ? raw : null,
+      aborted,
+      usage,
+      ctx.pricing,
+    );
+  }
+}
+
+/** 统计 upsert 预编译语句（按日落表，独立于日志）。 */
+const statsUpsertStmt = sqlite.prepare(
+  `INSERT INTO t_proxy_daily_stats
+     (stat_date, channel_id, channel_name, source_id, protocol, model,
+      calls, error_calls, input_tokens, cached_input_tokens, output_tokens, total_cost)
+   VALUES (date('now','localtime'), ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+   ON CONFLICT(stat_date, channel_id, source_id, protocol, model) DO UPDATE SET
+     calls = calls + 1,
+     error_calls = error_calls + excluded.error_calls,
+     input_tokens = input_tokens + excluded.input_tokens,
+     cached_input_tokens = cached_input_tokens + excluded.cached_input_tokens,
+     output_tokens = output_tokens + excluded.output_tokens,
+     total_cost = total_cost + excluded.total_cost,
+     channel_name = excluded.channel_name`,
+);
+
+/**
+ * 每次调用都按日落表累计统计（关闭日志也不影响统计）。
+ * 异步落库，不阻塞响应。
+ */
+function recordStats(ctx: {
+  channel: ResolvedChannel; source: any; protocol: Protocol; model: string;
+  isError: boolean; usage: NormalizedUsage; costs: { totalCost: number } | null;
+}) {
+  const channelId = ctx.channel.id;
+  const channelName = ctx.channel.name ?? '';
+  const sourceId = ctx.source?.id ?? ctx.channel.sourceId;
+  const errInc = ctx.isError ? 1 : 0;
+  const totalCost = ctx.costs ? ctx.costs.totalCost : 0;
+  enqueueWrite(() => {
+    try {
+      statsUpsertStmt.run(
+        channelId, channelName, sourceId, ctx.protocol, ctx.model || null,
+        errInc, ctx.usage.inputTokens, ctx.usage.cachedInputTokens, ctx.usage.outputTokens, totalCost,
+      );
+    } catch (e) {
+      logSystemError('proxy', '每日统计落库失败', e instanceof Error ? e.message : e);
+    }
+  });
 }
 
 function insertLog(
@@ -419,7 +557,7 @@ function insertLog(
     try {
       db.insert(schema.callLogs).values(values).run();
     } catch (e) {
-      console.error('[log insert failed]', e);
+      logSystemError('proxy', '调用日志写入失败', e instanceof Error ? e.message : e);
     }
   });
 }

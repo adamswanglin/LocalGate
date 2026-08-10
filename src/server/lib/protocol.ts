@@ -3,7 +3,7 @@ export type Protocol = 'openai_chat' | 'openai_response' | 'anthropic';
 export interface ProtocolMeta {
   // 客户端请求路径
   path: string;
-  // 上游路径后缀（拼到 source.baseUrl 后面）
+  // 上游完整路径（仅供历史数据迁移使用；路由现在直接用 source 保存的完整 API 地址）
   upstreamSuffix: string;
   // 转发给上游时使用的 header
   upstreamAuthHeader: 'authorization' | 'x-api-key';

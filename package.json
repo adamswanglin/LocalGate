@@ -29,6 +29,7 @@
     "electron-updater": "^6.3.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "undici": "^6.21.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -63,7 +64,8 @@
       "electron/**",
       "dist/**",
       "web/dist/**",
-      "package.json"
+      "package.json",
+      "!**/node_modules/{electron,electron-builder,@electron,vite,@vitejs,tsx,typescript,drizzle-kit,tailwindcss,@tailwindcss,mysql2,@types,react,react-dom,react-router-dom,lucide-react}/**"
     ],
     "asarUnpack": [
       "**/*.node"
@@ -109,5 +111,8 @@
       "releaseType": "release"
     },
     "forceCodeSigning": false
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "better-sqlite3", "esbuild"]
   }
 }

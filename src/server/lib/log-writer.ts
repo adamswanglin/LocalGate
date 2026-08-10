@@ -5,6 +5,8 @@
  * 这里用 setImmediate 把写延后到下一个事件循环 tick（响应已先发出去），
  * 并把同一 tick 内积压的写批量串行执行。
  */
+import { logSystemError } from './syslog.js';
+
 type WriteTask = () => void;
 
 const queue: WriteTask[] = [];
@@ -17,7 +19,7 @@ function flush() {
     try {
       task();
     } catch (e) {
-      console.error('[log write failed]', e);
+      logSystemError('log-writer', '调用日志写入失败', e instanceof Error ? e.message : e);
     }
   }
 }

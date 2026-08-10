@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ModelEntry, Source, Token, MetaInfo } from '../lib/api.js';
 import { Button, Input, Select, Label, Toggle, Badge, Card, Modal, SkeletonRow, CopyButton } from '../components/ui.js';
-import { Plus, Pencil, Trash2, Copy, Check, KeyRound, Globe, Lock, X, Layers } from 'lucide-react';
+import { Plus, Pencil, Trash2, Copy, Check, KeyRound, Globe, Lock, X, Layers, Zap } from 'lucide-react';
 import { t, fmtDate } from '../lib/i18n.js';
 
 const PROTOCOL_TABS = [
@@ -55,6 +55,12 @@ export default function ModelEntriesPage() {
   const [tokForm, setTokForm] = useState({ name: '', token: '' });
   const [createdToken, setCreatedToken] = useState<Token | null>(null);
   const [copiedTok, setCopiedTok] = useState<number | null>(null);
+
+  // 测试连通
+  const [testingGroup, setTestingGroup] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestResult[]>>({});
+
+  type TestResult = { protocol: string; ok: boolean; msg: string };
 
   async function load() {
     setLoading(true);
@@ -216,6 +222,27 @@ export default function ModelEntriesPage() {
     setTokens((prev) => prev.map((r) => (r.id === tk.id ? { ...r, enabled: v } : r)));
     try { await api.tokens.update(tk.id, { enabled: v }); }
     catch (e: any) { setTokens((prev) => prev.map((r) => (r.id === tk.id ? { ...r, enabled: !v } : r))); alert(e.message || t('common.saveFailed')); }
+  }
+
+  async function testGroup(model: string) {
+    const modelName = window.prompt(t('modelEntries.testPrompt'), 'doubao-seed-2.0-code');
+    if (!modelName) return;
+    setTestingGroup(model);
+    try {
+      const r = await api.modelGroups.test(model, modelName.trim());
+      const items = r.results || [r];
+      const results: TestResult[] = items.map((item: any) => ({
+        protocol: item.protocol,
+        ok: item.ok,
+        msg: item.ok
+          ? t('sources.testSuccess', { status: String(item.status ?? '?') })
+          : (item.error || (item.sample ? item.sample.slice(0, 80) : 'unknown error')),
+      }));
+      setTestResults((p) => ({ ...p, [model]: results }));
+    } catch (e: any) {
+      setTestResults((p) => ({ ...p, [model]: [{ protocol: '-', ok: false, msg: e.message }] }));
+    }
+    setTestingGroup(null);
   }
 
   const baseUrls = meta
@@ -381,10 +408,22 @@ export default function ModelEntriesPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => testGroup(g.model)} disabled={testingGroup === g.model}><Zap size={13} /> {t('sources.test')}</Button>
                     <Button size="sm" variant="ghost" onClick={() => startEditGroup(g.model)}><Pencil size={13} /> {t('modelEntries.editGroup')}</Button>
                     <Button size="sm" variant="ghost" onClick={() => removeGroup(g.model)}><Trash2 size={13} className="text-red-500" /></Button>
                   </div>
                 </div>
+                {/* 测试结果 */}
+                {testResults[g.model] && (
+                  <div className="px-5 py-2 border-b border-stone-100 flex flex-wrap gap-3">
+                    {testResults[g.model].map((r) => (
+                      <div key={r.protocol} className={`flex items-center gap-1 text-xs ${r.ok ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {r.ok ? <Check size={12} /> : <X size={12} />}
+                        <span className="font-mono">{r.protocol}</span> {r.msg}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* 组体：每个协议一行（次级信息） */}
                 <table className="w-full text-sm">
                   <thead className="text-stone-400 text-[11px]">
@@ -578,13 +617,13 @@ function BindingsEditor({
                 >
                   <option value="">{r.sourceId ? t('modelEntries.placeholderSelectModel') : t('modelEntries.placeholderSelectSourceFirst')}</option>
                   {models.map((m) => (
-                    <option key={m.id} value={m.id}>{m.model}（¥{fmtPrice(m.inputPrice)} / ¥{fmtPrice(m.cachedInputPrice)} / ¥{fmtPrice(m.outputPrice)}）</option>
+                    <option key={m.id} value={m.id}>{m.model}（${fmtPrice(m.inputPrice)} / ${fmtPrice(m.cachedInputPrice)} / ${fmtPrice(m.outputPrice)}）</option>
                   ))}
                 </Select>
               </div>
               {selected && (
                 <span className="text-[10px] text-stone-400 whitespace-nowrap shrink-0">
-                  {t('sources.priceOutput')} ¥{fmtPrice(selected.inputPrice)} / ¥{fmtPrice(selected.cachedInputPrice)} / ¥{fmtPrice(selected.outputPrice)}
+                  {t('sources.priceOutput')} ${fmtPrice(selected.inputPrice)} / ${fmtPrice(selected.cachedInputPrice)} / ${fmtPrice(selected.outputPrice)}
                 </span>
               )}
             </div>
@@ -603,5 +642,5 @@ function fmtPrice(v: number | null | undefined): string {
   return String(v);
 }
 function priceLabel(b: { inputPrice: number | null; cachedInputPrice: number | null; outputPrice: number | null }): string {
-  return `¥${fmtPrice(b.inputPrice)} / ¥${fmtPrice(b.cachedInputPrice)} / ¥${fmtPrice(b.outputPrice)}`;
+  return `$${fmtPrice(b.inputPrice)} / $${fmtPrice(b.cachedInputPrice)} / $${fmtPrice(b.outputPrice)}`;
 }

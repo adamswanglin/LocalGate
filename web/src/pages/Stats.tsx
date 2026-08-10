@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, Source, ModelEntry, StatsResult, StatRow, StackedStatsResult } from '../lib/api.js';
 import { Select, Card, SkeletonRow, EmptyState } from '../components/ui.js';
 import { LineChart, BarChart, StackedBarChart, COLORS } from '../components/chart.js';
-import { BarChart3, ArrowDownToLine, ArrowUpFromLine, Hash, Database, Calendar, Filter, Coins } from 'lucide-react';
+import { BarChart3, ArrowDownToLine, ArrowUpFromLine, Hash, Database, Calendar, Filter, Coins, AlertTriangle } from 'lucide-react';
 import { t, fmtMoney } from '../lib/i18n.js';
 
 const GROUPS = [
@@ -52,7 +52,7 @@ export default function StatsPage() {
 
   const isTime = f.groupBy === 'day' || f.groupBy === 'month';
   const rows = data?.rows ?? [];
-  const totals = data?.totals ?? { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, cost: 0, calls: 0 };
+  const totals = data?.totals ?? { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, cost: 0, calls: 0, errorCalls: 0 };
 
   // 图表数据：输入(非缓存) / 缓存输入 / 输出
   const labels = rows.map((r) => String(r.key ?? '-'));
@@ -77,7 +77,7 @@ export default function StatsPage() {
       </div>
 
       {/* 汇总卡片 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <StatCardEnhanced
           label={t('stats.statInput')}
           value={loading ? '-' : totals.inputTokens}
@@ -106,6 +106,15 @@ export default function StatsPage() {
           accent="#8a8278"
           total={loading ? 0 : totals.calls}
           isCalls
+        />
+        <StatCardEnhanced
+          label={t('stats.statErrors')}
+          value={loading ? '-' : totals.errorCalls}
+          icon={<AlertTriangle size={18} />}
+          accent={totals.errorCalls > 0 ? '#dc2626' : '#8a8278'}
+          total={loading ? 0 : totals.calls}
+          isCalls
+          rate={totals.calls > 0 ? (totals.errorCalls / totals.calls) * 100 : 0}
         />
         <StatCardEnhanced
           label={t('stats.statCost')}
@@ -239,19 +248,21 @@ export default function StatsPage() {
                 <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableCached')}</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableOutput')}</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableCalls')}</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableErrors')}</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">{t('stats.tableCost')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={6} />)}
+              {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} cols={7} />)}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={6}><EmptyState icon={<BarChart3 size={24} />} title={t('stats.empty')} description="" /></td></tr>
+                <tr><td colSpan={7}><EmptyState icon={<BarChart3 size={24} />} title={t('stats.empty')} description="" /></td></tr>
               )}
               {!loading && rows.map((r: StatRow, i) => {
                 const maxInput = Math.max(1, ...rows.map((row) => row.inputTokens));
                 const maxCached = Math.max(1, ...rows.map((row) => row.cachedInputTokens));
                 const maxOutput = Math.max(1, ...rows.map((row) => row.outputTokens));
                 const maxCalls = Math.max(1, ...rows.map((row) => row.calls));
+                const maxErrors = Math.max(1, ...rows.map((row) => row.errorCalls || 0));
                 const maxCost = Math.max(1e-6, ...rows.map((row) => row.cost || 0));
                 return (
                   <tr key={i} className="hover:bg-stone-50/80 transition-colors group">
@@ -293,6 +304,14 @@ export default function StatsPage() {
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${((r.errorCalls || 0) / maxErrors) * 100}%`, backgroundColor: (r.errorCalls || 0) > 0 ? '#dc2626' : '#d6d3d1' }} />
+                        </div>
+                        <span className={`text-sm tabular-nums font-medium min-w-[60px] ${(r.errorCalls || 0) > 0 ? 'text-red-600' : 'text-stone-400'}`}>{(r.errorCalls || 0).toLocaleString()}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 h-1.5 rounded-full bg-stone-100 overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${((r.cost || 0) / maxCost) * 100}%`, backgroundColor: '#a1492d' }} />
                         </div>
                         <span className="text-sm text-brand-700 tabular-nums font-medium min-w-[70px]">{fmtMoney(r.cost || 0)}</span>
@@ -310,6 +329,7 @@ export default function StatsPage() {
                   <td className="px-5 py-3.5 text-right text-sm font-bold text-emerald-600 tabular-nums">{totals.cachedInputTokens.toLocaleString()}</td>
                   <td className="px-5 py-3.5 text-right text-sm font-bold text-amber-600 tabular-nums">{totals.outputTokens.toLocaleString()}</td>
                   <td className="px-5 py-3.5 text-right text-sm font-bold text-stone-700 tabular-nums">{totals.calls.toLocaleString()}</td>
+                  <td className="px-5 py-3.5 text-right text-sm font-bold text-red-600 tabular-nums">{(totals.errorCalls || 0).toLocaleString()}</td>
                   <td className="px-5 py-3.5 text-right text-sm font-bold text-brand-700 tabular-nums">{fmtMoney(totals.cost || 0)}</td>
                 </tr>
               </tfoot>
@@ -334,6 +354,7 @@ function StatCardEnhanced({
   total,
   isCalls = false,
   money = false,
+  rate,
 }: {
   label: string;
   value: string | number;
@@ -342,15 +363,16 @@ function StatCardEnhanced({
   total: number;
   isCalls?: boolean;
   money?: boolean;
+  rate?: number;
 }) {
   const numValue = typeof value === 'number' ? value : 0;
   const percentage = !isCalls && !money && total > 0 ? (numValue / total) * 100 : 0;
-  
+
   return (
     <div className="relative rounded-xl border border-stone-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       {/* 顶部色条 */}
       <div className="h-1 w-full" style={{ backgroundColor: accent }} />
-      
+
       <div className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg" style={{ backgroundColor: `${accent}15` }}>
@@ -361,8 +383,13 @@ function StatCardEnhanced({
               {percentage.toFixed(1)}%
             </div>
           )}
+          {rate != null && rate > 0 && (
+            <div className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: `${accent}15`, color: accent }}>
+              {rate.toFixed(1)}%
+            </div>
+          )}
         </div>
-        
+
         <div className="text-2xl font-bold text-stone-800 tracking-tight mb-1">
           {money ? fmtMoney(numValue) : (typeof value === 'number' ? value.toLocaleString() : value)}
         </div>
@@ -402,7 +429,7 @@ function StackedPanel({
   const [data, setData] = useState<StackedStatsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [dim, setDim] = useState('source_daily');
-  const [metric, setMetric] = useState<'tokens' | 'calls' | 'cost'>('tokens');
+  const [metric, setMetric] = useState<'tokens' | 'calls' | 'errors' | 'cost'>('tokens');
   const [sourceId, setSourceId] = useState('');
 
   // 单上游维度默认沿用主页选中的 sourceId
@@ -458,6 +485,14 @@ function StackedPanel({
               }`}
             >
               {t('stats.stackCalls')}
+            </button>
+            <button
+              onClick={() => setMetric('errors')}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                metric === 'errors' ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {t('stats.stackErrors')}
             </button>
             <button
               onClick={() => setMetric('cost')}

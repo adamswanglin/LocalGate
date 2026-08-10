@@ -10,28 +10,16 @@ permissions:
   contents: write
 
 jobs:
-  # ── macOS: arm64 与 x64 各自单独构建 ──────────────────────
+  # ── macOS: 仅 arm64（GitHub Actions 对 Intel runner 支持不佳，不再打 x64）──
   # 关键经验（2026-08 本机复现确认）：
-  #   1) build.mac.target 里写死 arch:[arm64,x64] 会让 CLI 的 --arch 失效，
-  #      electron-builder 一次打出双架构（release/mac + release/mac-arm64）。
-  #      随后 `find ... | head -1` 按字母序抓到 release/mac（x64）→ 误报
-  #      「arm64 产出 x86_64」。根因是双架构 + 校验抓错文件，并非真的架构反转。
-  #   2) 故 package.json 的 mac.target 只写 ["dmg","zip"]（不锁 arch），让 CLI
-  #      的 --arch 唯一决定架构，每个 job 只产单架构。npmRebuild:true 负责重编
-  #      better-sqlite3 并裁剪 devDependencies（实测 arm64 .node 正确、zip≈101M）。
-  #   3) 校验遍历 release 下所有 .node 逐一核对，并加 zip 体积护栏（>250M 失败）。
-  # arm64 走 macos-14（原生、快）；x64 走 macos-13（原生 Intel，慢但稳）。
+  #   1) build.mac.target 里写死 arch 会让 CLI 的 --arch 失效、一次打出双架构。
+  #      故 mac.target 只写 ["dmg","zip"]（不锁 arch），让 CLI --arm64 唯一决定架构。
+  #   2) npmRebuild:true 按 --arch 重编 better-sqlite3；devDeps 的裁剪通过
+  #      package.json 的 files 否定规则兜底（CI 里 electron 等 devDeps 会漏入，
+  #      见下），并保留 zip 体积护栏（>250M 失败）防回归。
   build-mac:
-    name: macOS (${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            arch: arm64
-          - os: macos-13
-            arch: x64
-    runs-on: ${{ matrix.os }}
+    name: macOS (arm64)
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -57,26 +45,21 @@ jobs:
 
       - run: pnpm run build
 
-      # 仅构建；npmRebuild:true 自动按 --arch 重编 better-sqlite3 并裁剪依赖。
-      # 发布交给独立的 release job。
-      - run: pnpm exec electron-builder --mac --${{ matrix.arch }} --publish never
+      # 仅构建；npmRebuild:true 自动按 --arm64 重编 better-sqlite3。发布交给独立的 release job。
+      - run: pnpm exec electron-builder --mac --arm64 --publish never
 
       # 校验：遍历 release 下所有 better_sqlite3.node，逐一核对架构；
       # 并对 zip 加体积护栏，防止 devDeps 漏入导致产物膨胀（曾出现 1.1GB）。
-      - name: Verify native module arch (${{ matrix.arch }})
+      - name: Verify native module arch + zip size
         shell: bash
         run: |
           set -e
-          case "${{ matrix.arch }}" in
-            arm64) NEED=arm64 ;;
-            x64)   NEED=x86_64 ;;
-          esac
           COUNT=0
           for NODE in $(find release -path '*better_sqlite3.node'); do
             COUNT=$((COUNT+1))
             echo "native module #$COUNT: $NODE"
             file "$NODE"
-            file "$NODE" | grep -q "$NEED" || { echo "::error::arch mismatch: need $NEED"; exit 1; }
+            file "$NODE" | grep -q arm64 || { echo "::error::arch mismatch: need arm64"; exit 1; }
           done
           [ "$COUNT" -ge 1 ] || { echo "::error::no .node found in release"; exit 1; }
           # 体积护栏：mac zip 正常 ~101M，超过 250M 视为膨胀
@@ -86,20 +69,16 @@ jobs:
             echo "zip size: $SZ bytes ($ZIP)"
             [ "$SZ" -lt 262144000 ] || { echo "::error::zip bloated (>250MB), likely devDeps leaked"; exit 1; }
           fi
-          echo "arch + size ok (${{ matrix.arch }})"
-
-      # 每个架构各自生成一份 latest-mac.yml，release job 里合并成含双架构的单份
-      - name: Rename arch-specific latest-mac.yml
-        run: mv release/latest-mac.yml release/latest-mac-${{ matrix.arch }}.yml
+          echo "arch + size ok (arm64)"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
+          name: macos-arm64
           path: |
             release/LocalGate-*.dmg
-            release/LocalGate-*-mac.zip
+            release/LocalGate-*-arm64-mac.zip
             release/*.blockmap
-            release/latest-mac-${{ matrix.arch }}.yml
+            release/latest-mac.yml
           if-no-files-found: warn
 
   # ── Windows: x64 ────────────────────────────────────────
@@ -196,54 +175,6 @@ jobs:
 
       - name: List all artifacts
         run: find artifacts -type f
-
-      # 合并 arm64 + x64 两份 latest-mac.yml → 单份含双架构的 latest-mac.yml
-      # electron-updater 据此为不同架构的 Mac 选对应更新包
-      - name: Merge latest-mac.yml
-        shell: bash
-        run: |
-          node <<'EOF'
-          const fs = require('fs');
-          function load(p) {
-            if (!fs.existsSync(p)) return null;
-            const lines = fs.readFileSync(p, 'utf8').split('\n');
-            const o = { files: [] }; let cur = null, inF = false;
-            for (const l of lines) {
-              if (/^files:\s*$/.test(l)) { inF = true; continue; }
-              if (inF) {
-                const u = l.match(/^\s+-\s+url:\s+(.+)$/);
-                if (u) { cur = { url: u[1].trim() }; o.files.push(cur); continue; }
-                const s = l.match(/^\s+sha512:\s+(.+)$/);
-                if (s && cur) { cur.sha512 = s[1].trim(); continue; }
-                const z = l.match(/^\s+size:\s+(.+)$/);
-                if (z && cur) { cur.size = Number(z[1].trim()); continue; }
-                inF = false; // 当前行属于顶层字段，向下走
-              }
-              const k = l.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-              if (k) o[k[1]] = k[2].trim();
-            }
-            return o;
-          }
-          const a = load('artifacts/latest-mac-arm64.yml');
-          const b = load('artifacts/latest-mac-x64.yml');
-          if (!a || !b) { console.log('missing arch yml, skip merge'); process.exit(0); }
-          const m = {
-            version: a.version,
-            files: [...a.files, ...b.files],
-            path: a.path,
-            sha512: a.sha512,
-            releaseDate: a.releaseDate,
-          };
-          let out = `version: ${m.version}\nfiles:\n`;
-          for (const f of m.files) {
-            out += `  - url: ${f.url}\n    sha512: ${f.sha512}\n    size: ${f.size}\n`;
-          }
-          out += `path: ${m.path}\nsha512: ${m.sha512}\nreleaseDate: ${m.releaseDate}\n`;
-          fs.writeFileSync('artifacts/latest-mac.yml', out);
-          fs.existsSync('artifacts/latest-mac-arm64.yml') && fs.unlinkSync('artifacts/latest-mac-arm64.yml');
-          fs.existsSync('artifacts/latest-mac-x64.yml') && fs.unlinkSync('artifacts/latest-mac-x64.yml');
-          console.log(out);
-          EOF
 
       - uses: softprops/action-gh-release@v2
         with:

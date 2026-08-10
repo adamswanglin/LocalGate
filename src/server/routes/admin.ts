@@ -4,8 +4,9 @@ import { eq, desc, and, sql, or, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { networkInterfaces } from 'node:os';
 import { Protocol, PROTOCOLS } from '../lib/protocol.js';
-import { invalidateSettingsCache, invalidateTokensCache } from './proxy.js';
+import { invalidateSettingsCache, invalidateTokensCache, getDispatcher } from './proxy.js';
 import { MIN_LOG_CAP, MAX_LOG_CAP } from '../lib/log-retention.js';
+import { getSyslogs, clearSyslogs } from '../lib/syslog.js';
 
 const admin = new Hono();
 
@@ -76,14 +77,39 @@ function insertSourceModels(sourceId: number, models: any[]) {
 }
 
 function replaceSourceModels(sourceId: number, models: any[]) {
+  // ⚠ 不能「先全删再重建」：t_proxy_channel_sources 绑定按 source_model_id 引用本表，
+  // 全删后重新 INSERT 会给保留的模型分配新的自增 id，导致既有绑定的 source_model_id
+  // 指向已不存在的行 → 入口显示 (unknown)、调用报「no usable upstream binding」。
+  // 因此按 (source_id, model) 就地更新保留模型、仅插入新增模型、仅删除真正被移除的模型。
+  // （被移除的模型若仍被入口绑定，referencedModels 守卫会提前拦截，故此处删除是安全的。）
   const tx = sqlite.transaction((list: any[]) => {
-    sqlite.prepare(`DELETE FROM t_proxy_source_models WHERE source_id = ?`).run(sourceId);
-    if (list.length) {
-      const stmt = sqlite.prepare(
-        `INSERT INTO t_proxy_source_models (source_id, model, input_price, cached_input_price, output_price, enabled)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-      );
-      for (const m of list) stmt.run(sourceId, m.model, m.inputPrice, m.cachedInputPrice, m.outputPrice, m.enabled ?? 1);
+    const existing = sqlite.prepare(
+      `SELECT id, model FROM t_proxy_source_models WHERE source_id = ?`,
+    ).all(sourceId) as Array<{ id: number; model: string }>;
+    const existingByModel = new Map(existing.map((r) => [r.model, r.id]));
+    const keepIds = new Set<number>();
+    const insStmt = sqlite.prepare(
+      `INSERT INTO t_proxy_source_models (source_id, model, input_price, cached_input_price, output_price, enabled)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    const updStmt = sqlite.prepare(
+      `UPDATE t_proxy_source_models SET input_price = ?, cached_input_price = ?, output_price = ?, enabled = ?
+       WHERE id = ?`,
+    );
+    for (const m of list) {
+      const id = existingByModel.get(m.model);
+      if (id != null) {
+        updStmt.run(m.inputPrice, m.cachedInputPrice, m.outputPrice, m.enabled ?? 1, id);
+        keepIds.add(id);
+      } else {
+        const info = insStmt.run(sourceId, m.model, m.inputPrice, m.cachedInputPrice, m.outputPrice, m.enabled ?? 1);
+        keepIds.add(Number(info.lastInsertRowid));
+      }
+    }
+    const delIds = existing.filter((r) => !keepIds.has(r.id)).map((r) => r.id);
+    if (delIds.length) {
+      const placeholders = delIds.map(() => '?').join(',');
+      sqlite.prepare(`DELETE FROM t_proxy_source_models WHERE id IN (${placeholders})`).run(...delIds);
     }
   });
   tx(models);
@@ -315,6 +341,7 @@ admin.get('/api/settings', async (c) => {
     logIo: s ? !!s.logIo : true,
     logStreamBody: s ? !!s.logStreamBody : true,
     logCap: s ? s.logCap : 10000,
+    proxyUrl: s?.proxyUrl ?? '',
   });
 });
 
@@ -328,6 +355,11 @@ admin.patch('/api/settings', async (c) => {
     const cap = Math.floor(body.logCap);
     if (Number.isFinite(cap) && cap >= MIN_LOG_CAP && cap <= MAX_LOG_CAP) update.logCap = cap;
   }
+  if (typeof body.proxyUrl === 'string') {
+    // 规整代理地址：空串=直连；非空需是 http(s)://
+    const u = body.proxyUrl.trim();
+    if (!u || /^https?:\/\/.+/i.test(u)) update.proxyUrl = u;
+  }
   if (Object.keys(update).length) {
     await db.update(schema.settings).set(update).where(eq(schema.settings.id, 1));
     invalidateSettingsCache();
@@ -337,6 +369,7 @@ admin.patch('/api/settings', async (c) => {
     logIo: s ? !!s.logIo : true,
     logStreamBody: s ? !!s.logStreamBody : true,
     logCap: s ? s.logCap : 10000,
+    proxyUrl: s?.proxyUrl ?? '',
   });
 });
 
@@ -458,15 +491,18 @@ admin.post('/api/sources/:id/test', async (c) => {
 
   const testOne = async (ep: any) => {
     const meta = PROTOCOLS[ep.protocol as Protocol];
-    const url = ep.baseUrl.replace(/\/+$/, '') + meta.upstreamSuffix;
+    const url = ep.baseUrl.replace(/\/+$/, '');
     const headers = new Headers({ 'content-type': 'application/json' });
     if (meta.upstreamAuthHeader === 'authorization') headers.set('authorization', `Bearer ${src.apiKey}`);
     else headers.set('x-api-key', src.apiKey);
     if (ep.protocol === 'anthropic') headers.set('anthropic-version', '2023-06-01');
     // max_tokens=1 只为最小化消耗，验证连通与鉴权
     const body = JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] });
+    // 复用代理转发相同的分发器：连接超时 5s + 出站代理（按全局配置）
+    const [s] = await db.select().from(schema.settings).where(eq(schema.settings.id, 1));
     try {
-      const res = await fetch(url, { method: 'POST', headers, body });
+      // @ts-expect-error Node 的 fetch（undici）支持 dispatcher 选项
+      const res = await fetch(url, { method: 'POST', headers, body, dispatcher: getDispatcher(s?.proxyUrl) });
       const text = await res.text();
       return { protocol: ep.protocol, ok: res.status < 500, status: res.status, sample: text.slice(0, 300) };
     } catch (e: any) {
@@ -756,6 +792,78 @@ admin.put('/api/model-groups', async (c) => {
   return c.json(await loadGroupChannels(newModel));
 });
 
+// 测试模型入口连通：对指定 exposedModel 下每个已启用的协议 channel，向其当前生效的上游发最小请求
+admin.post('/api/model-groups/test', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const exposedModel = String(body?.exposedModel ?? '').trim();
+  const model = String(body?.model ?? '').trim();
+  if (!exposedModel) return c.json({ error: 'missing exposedModel' }, 400);
+  if (!model) return c.json({ ok: false, error: '请填写一个模型名后再测试' }, 200);
+
+  const channels = await db.select().from(schema.channels)
+    .where(eq(schema.channels.exposedModel, exposedModel));
+  const enabled = channels.filter((ch) => ch.enabled);
+  if (!enabled.length) return c.json({ ok: false, error: '该模型无已启用的协议可测试' }, 200);
+
+  // 批量加载绑定、源模型、上游源、协议端点
+  const chIds = enabled.map((ch) => ch.id);
+  const allBindings = await db.select().from(schema.channelSources).where(inArray(schema.channelSources.channelId, chIds));
+  const smIds = [...new Set(allBindings.map((b) => b.sourceModelId))];
+  const smRows = smIds.length ? await db.select().from(schema.sourceModels).where(inArray(schema.sourceModels.id, smIds)) : [];
+  const smById = new Map(smRows.map((m) => [m.id, m]));
+  const srcIds = [...new Set(smRows.map((m) => m.sourceId))];
+  const srcRows = srcIds.length ? await db.select().from(schema.sources).where(inArray(schema.sources.id, srcIds)) : [];
+  const srcById = new Map(srcRows.map((s) => [s.id, s]));
+  const epRows = srcIds.length ? await db.select().from(schema.sourceEndpoints).where(inArray(schema.sourceEndpoints.sourceId, srcIds)) : [];
+  const epBySrcProto = new Map<string, any>();
+  for (const ep of epRows) epBySrcProto.set(`${ep.sourceId}:${ep.protocol}`, ep);
+
+  const [settings] = await db.select().from(schema.settings).where(eq(schema.settings.id, 1));
+  const dispatcher = getDispatcher(settings?.proxyUrl || undefined);
+
+  const results: any[] = [];
+  for (const ch of enabled) {
+    const protocol = ch.protocol as Protocol;
+    const meta = PROTOCOLS[protocol];
+    if (!meta) { results.push({ protocol, ok: false, error: `未知协议 ${protocol}` }); continue; }
+
+    const chBindings = allBindings.filter((b) => b.channelId === ch.id);
+    const active = chBindings.find((b) => b.id === ch.activeBindingId) || chBindings[0];
+    if (!active) { results.push({ protocol, ok: false, error: '无绑定' }); continue; }
+
+    const sm = smById.get(active.sourceModelId);
+    if (!sm) { results.push({ protocol, ok: false, error: '上游模型不存在' }); continue; }
+    const src = srcById.get(sm.sourceId);
+    if (!src) { results.push({ protocol, ok: false, error: '上游源不存在' }); continue; }
+
+    const ep = epBySrcProto.get(`${src.id}:${protocol}`);
+    if (!ep) { results.push({ protocol, ok: false, error: `该上游未配置 ${protocol} 协议地址` }); continue; }
+
+    const url = ep.baseUrl.replace(/\/+$/, '') + meta.upstreamSuffix;
+    const headers = new Headers({ 'content-type': 'application/json' });
+    if (meta.upstreamAuthHeader === 'authorization') headers.set('authorization', `Bearer ${src.apiKey}`);
+    else headers.set('x-api-key', src.apiKey);
+    if (protocol === 'anthropic') headers.set('anthropic-version', '2023-06-01');
+
+    const upstreamModel = sm.model;
+    const bodyObj = protocol === 'anthropic'
+      ? { model: upstreamModel, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }
+      : { model: upstreamModel, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] };
+
+    try {
+      // @ts-expect-error Node fetch (undici) supports dispatcher
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(bodyObj), dispatcher });
+      const text = await res.text();
+      results.push({ protocol, ok: res.status < 500, status: res.status, sample: text.slice(0, 300) });
+    } catch (e: any) {
+      results.push({ protocol, ok: false, error: e.message });
+    }
+  }
+
+  if (results.length === 1) return c.json(results[0]);
+  return c.json({ results });
+});
+
 // 删除整个 modelId（其全部协议的 channel）；body.key = exposedModel，兼容空/特殊字符
 admin.delete('/api/model-groups', async (c) => {
   const body = await c.req.json().catch(() => ({}));
@@ -955,7 +1063,19 @@ admin.delete('/api/logs', async (c) => {
   return c.json({ ok: true, deleted: info.changes });
 });
 
-/* ---------------- 统计 stats ---------------- */
+/* ---------------- 系统日志 system-logs（近期错误/告警事件，内存环形缓冲） ---------------- */
+
+admin.get('/api/system-logs', (c) => {
+  const limit = Math.min(Number(c.req.query('limit') || 200), 500);
+  return c.json({ rows: getSyslogs(limit) });
+});
+
+admin.delete('/api/system-logs', (c) => {
+  clearSyslogs();
+  return c.json({ ok: true });
+});
+
+/* ---------------- 统计 stats（数据源：t_proxy_daily_stats，独立于调用日志） ---------------- */
 
 admin.get('/api/stats', async (c) => {
   const groupBy = (c.req.query('groupBy') || 'day') as 'day' | 'month' | 'source' | 'channel' | 'model';
@@ -966,33 +1086,35 @@ admin.get('/api/stats', async (c) => {
   const model = c.req.query('model');
   const protocol = c.req.query('protocol');
 
+  const ds = schema.dailyStats;
   const conds: any[] = [];
-  if (dateFrom) conds.push(sql`${schema.callLogs.createdAt} >= ${dateFrom}`);
-  if (dateTo) conds.push(sql`${schema.callLogs.createdAt} <= ${dateTo}`);
-  if (sourceId) conds.push(eq(schema.callLogs.sourceId, Number(sourceId)));
-  if (channelId) conds.push(eq(schema.callLogs.channelId, Number(channelId)));
-  if (model) conds.push(eq(schema.callLogs.model, model));
-  if (protocol) conds.push(eq(schema.callLogs.protocol, protocol));
+  if (dateFrom) conds.push(sql`${ds.statDate} >= ${dateFrom.slice(0, 10)}`);
+  if (dateTo) conds.push(sql`${ds.statDate} <= ${dateTo.slice(0, 10)}`);
+  if (sourceId) conds.push(eq(ds.sourceId, Number(sourceId)));
+  if (channelId) conds.push(eq(ds.channelId, Number(channelId)));
+  if (model) conds.push(eq(ds.model, model));
+  if (protocol) conds.push(eq(ds.protocol, protocol));
   const where = conds.length ? and(...conds) : undefined;
 
-  // 分组键 SQL
+  // 分组键 SQL（基于每日统计行聚合）
   let keyExpr: any;
-  if (groupBy === 'day') keyExpr = sql`date(${schema.callLogs.createdAt})`;
-  else if (groupBy === 'month') keyExpr = sql`strftime('%Y-%m', ${schema.callLogs.createdAt})`;
-  else if (groupBy === 'source') keyExpr = schema.callLogs.sourceId;
-  else if (groupBy === 'channel') keyExpr = schema.callLogs.channelId;
-  else keyExpr = schema.callLogs.model;
+  if (groupBy === 'day') keyExpr = sql`${ds.statDate}`;
+  else if (groupBy === 'month') keyExpr = sql`strftime('%Y-%m', ${ds.statDate})`;
+  else if (groupBy === 'source') keyExpr = ds.sourceId;
+  else if (groupBy === 'channel') keyExpr = ds.channelId;
+  else keyExpr = ds.model;
 
   const rows = await db
     .select({
       key: keyExpr as any,
-      inputTokens: sql<number>`coalesce(sum(${schema.callLogs.inputTokens}),0)`,
-      cachedInputTokens: sql<number>`coalesce(sum(${schema.callLogs.cachedInputTokens}),0)`,
-      outputTokens: sql<number>`coalesce(sum(${schema.callLogs.outputTokens}),0)`,
-      cost: sql<number>`coalesce(sum(${schema.callLogs.totalCost}),0)`,
-      calls: sql<number>`count(*)`,
+      inputTokens: sql<number>`coalesce(sum(${ds.inputTokens}),0)`,
+      cachedInputTokens: sql<number>`coalesce(sum(${ds.cachedInputTokens}),0)`,
+      outputTokens: sql<number>`coalesce(sum(${ds.outputTokens}),0)`,
+      cost: sql<number>`coalesce(sum(${ds.totalCost}),0)`,
+      calls: sql<number>`coalesce(sum(${ds.calls}),0)`,
+      errorCalls: sql<number>`coalesce(sum(${ds.errorCalls}),0)`,
     })
-    .from(schema.callLogs)
+    .from(ds)
     .where(where)
     .groupBy(keyExpr as any)
     .orderBy(keyExpr as any);
@@ -1000,13 +1122,14 @@ admin.get('/api/stats', async (c) => {
   // 总计
   const [totals] = await db
     .select({
-      inputTokens: sql<number>`coalesce(sum(${schema.callLogs.inputTokens}),0)`,
-      cachedInputTokens: sql<number>`coalesce(sum(${schema.callLogs.cachedInputTokens}),0)`,
-      outputTokens: sql<number>`coalesce(sum(${schema.callLogs.outputTokens}),0)`,
-      cost: sql<number>`coalesce(sum(${schema.callLogs.totalCost}),0)`,
-      calls: sql<number>`count(*)`,
+      inputTokens: sql<number>`coalesce(sum(${ds.inputTokens}),0)`,
+      cachedInputTokens: sql<number>`coalesce(sum(${ds.cachedInputTokens}),0)`,
+      outputTokens: sql<number>`coalesce(sum(${ds.outputTokens}),0)`,
+      cost: sql<number>`coalesce(sum(${ds.totalCost}),0)`,
+      calls: sql<number>`coalesce(sum(${ds.calls}),0)`,
+      errorCalls: sql<number>`coalesce(sum(${ds.errorCalls}),0)`,
     })
-    .from(schema.callLogs)
+    .from(ds)
     .where(where);
 
   // 为 source/channel/model 补可读名称
@@ -1034,7 +1157,11 @@ type StackDim = 'source_daily' | 'source_model' | 'channel_model' | 'single_sour
 
 admin.get('/api/stats/stacked', async (c) => {
   const dim = (c.req.query('dim') || 'source_daily') as StackDim;
-  const metric = c.req.query('metric') === 'calls' ? 'calls' : c.req.query('metric') === 'cost' ? 'cost' : 'tokens';
+  const metricRaw = c.req.query('metric');
+  const metric = metricRaw === 'calls' ? 'calls'
+    : metricRaw === 'cost' ? 'cost'
+    : metricRaw === 'errors' ? 'errors'
+    : 'tokens';
   const dateFrom = normalizeDt(c.req.query('dateFrom') || '', false);
   const dateTo = normalizeDt(c.req.query('dateTo') || '', true);
   const sourceId = c.req.query('sourceId');
@@ -1046,12 +1173,12 @@ admin.get('/api/stats/stacked', async (c) => {
     return c.json({ dim, metric, labels: [], stacks: [] });
   }
 
-  // 维度 → 行/列表达式
+  // 维度 → 行/列表达式（基于每日统计表 t_proxy_daily_stats）
   const rowExprByDim: Record<StackDim, string> = {
-    source_daily: `date(created_at)`,
+    source_daily: `stat_date`,
     source_model: `source_id`,
     channel_model: `channel_id`,
-    single_source_model: `date(created_at)`,
+    single_source_model: `stat_date`,
   };
   const stackExprByDim: Record<StackDim, string> = {
     source_daily: `source_id`,
@@ -1062,23 +1189,25 @@ admin.get('/api/stats/stacked', async (c) => {
   const rowExpr = rowExprByDim[dim];
   const stackExpr = stackExprByDim[dim];
   const metricExpr = metric === 'calls'
-    ? `count(*)`
+    ? `coalesce(sum(calls),0)`
     : metric === 'cost'
       ? `coalesce(sum(coalesce(total_cost,0)),0)`
-      : `coalesce(sum(coalesce(input_tokens,0)+coalesce(cached_input_tokens,0)+coalesce(output_tokens,0)),0)`;
+      : metric === 'errors'
+        ? `coalesce(sum(error_calls),0)`
+        : `coalesce(sum(coalesce(input_tokens,0)+coalesce(cached_input_tokens,0)+coalesce(output_tokens,0)),0)`;
 
-  // WHERE 拼接
+  // WHERE 拼接（按日期过滤；日期参数取前 10 位 'YYYY-MM-DD'）
   const whereParts: string[] = [];
   const params: any[] = [];
-  if (dateFrom) { whereParts.push(`created_at >= ?`); params.push(dateFrom); }
-  if (dateTo) { whereParts.push(`created_at <= ?`); params.push(dateTo); }
+  if (dateFrom) { whereParts.push(`stat_date >= ?`); params.push(dateFrom.slice(0, 10)); }
+  if (dateTo) { whereParts.push(`stat_date <= ?`); params.push(dateTo.slice(0, 10)); }
   if (sourceId) { whereParts.push(`source_id = ?`); params.push(Number(sourceId)); }
   if (channelId) { whereParts.push(`channel_id = ?`); params.push(Number(channelId)); }
   if (protocol) { whereParts.push(`protocol = ?`); params.push(protocol); }
   const whereSql = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : '';
 
   const q = `SELECT ${rowExpr} AS r, ${stackExpr} AS s, ${metricExpr} AS v
-             FROM t_proxy_call_logs ${whereSql}
+             FROM t_proxy_daily_stats ${whereSql}
              GROUP BY r, s ORDER BY r, s`;
   const rows = sqlite.prepare(q).all(...params) as Array<{ r: number | string | null; s: number | string | null; v: number }>;
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { api, Source } from '../lib/api.js';
+import { api, Source, Settings } from '../lib/api.js';
 import { Button, Input, Select, Label, Toggle, Badge, Card, Modal, StatCard, SkeletonRow, EmptyState } from '../components/ui.js';
-import { Plus, Pencil, Trash2, Zap, Check, X, Server } from 'lucide-react';
+import { Plus, Pencil, Trash2, Zap, Check, X, Server, Globe } from 'lucide-react';
 import { t } from '../lib/i18n.js';
 
 const PROVIDERS = [
@@ -30,6 +30,10 @@ export default function SourcesPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [testing, setTesting] = useState<number | null>(null);
   const [testResult, setTestResult] = useState<Record<number, TestResult[]>>({});
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [proxyDraft, setProxyDraft] = useState('');
+  const [savingProxy, setSavingProxy] = useState(false);
+  const [proxyOn, setProxyOn] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -37,6 +41,48 @@ export default function SourcesPage() {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    api.settings.get().then((s) => {
+      setSettings(s);
+      setProxyDraft(s.proxyUrl ?? '');
+      setProxyOn(!!s.proxyUrl);
+    }).catch(() => {});
+  }, []);
+
+  // 出站代理开关：proxyOn 独立跟踪 UI 开关状态，不依赖 proxyUrl 是否为空
+  async function toggleProxy(on: boolean) {
+    if (!settings) return;
+    setProxyOn(on);
+    if (!on) {
+      // 关闭：清空代理地址并立即提交
+      setSavingProxy(true);
+      try {
+        setProxyDraft('');
+        const updated = await api.settings.update({ proxyUrl: '' });
+        setSettings(updated);
+      } catch (e: any) { alert(e.message || t('common.saveFailed')); }
+      setSavingProxy(false);
+    }
+    // 开启时仅翻转 UI，等用户填写地址后 commitProxy 提交
+  }
+  async function commitProxy() {
+    if (!settings) return;
+    const u = proxyDraft.trim();
+    if (u && !/^https?:\/\/.+/i.test(u)) {
+      alert(t('logs.proxyUrlHint'));
+      setProxyDraft(settings.proxyUrl ?? '');
+      return;
+    }
+    if (u === (settings.proxyUrl ?? '')) return;
+    setSavingProxy(true);
+    try {
+      const updated = await api.settings.update({ proxyUrl: u });
+      setSettings(updated);
+      // 若用户清空了地址，自动关闭开关
+      if (!u) setProxyOn(false);
+    } catch (e: any) { alert(e.message || t('common.saveFailed')); }
+    setSavingProxy(false);
+  }
 
   function startCreate() { setForm({ ...empty, models: [], endpoints: [{ protocol: 'openai_chat', baseUrl: '' }] }); setEditId(null); setOpen(true); }
   function startEdit(s: Source) {
@@ -125,6 +171,30 @@ export default function SourcesPage() {
         <StatCard label={t('sources.statDisabled')} value={loading ? '-' : rows.length - enabledCount} icon={<X size={20} />} accent="slate" />
       </div>
 
+      {/* 全局出站代理 */}
+      <Card className="flex flex-wrap items-center gap-4 px-4 py-3 mb-6">
+        <div className="flex items-center gap-2 text-stone-500"><Globe size={15} /><span className="text-xs font-medium uppercase tracking-wider">{t('logs.proxyUrl')}</span></div>
+        <label className="flex items-center gap-2 text-sm text-stone-600">
+          <Toggle disabled={!settings || savingProxy} checked={proxyOn} onChange={(v) => toggleProxy(v)} />
+          <span>{t('common.enabled')}</span>
+        </label>
+        {proxyOn && (
+          <label className="flex items-center gap-2 text-sm text-stone-600 flex-1 min-w-[16rem]" title={t('logs.proxyUrlHint')}>
+            <Input
+              type="text"
+              placeholder={t('logs.proxyPlaceholder')}
+              className="max-w-sm"
+              disabled={!settings || savingProxy}
+              value={proxyDraft}
+              onChange={(e) => setProxyDraft(e.target.value)}
+              onBlur={commitProxy}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            />
+          </label>
+        )}
+        <span className="text-xs text-stone-400">{t('logs.proxyUrlHint')}</span>
+      </Card>
+
       {/* Table */}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
@@ -208,6 +278,13 @@ export default function SourcesPage() {
 
 /* ---------------- 协议地址编辑器 ---------------- */
 
+// 每个协议的完整 API 地址示例（占位符）
+const URL_PLACEHOLDER: Record<string, string> = {
+  openai_chat: 'https://api.openai.com/v1/chat/completions',
+  openai_response: 'https://api.openai.com/v1/responses',
+  anthropic: 'https://api.anthropic.com/v1/messages',
+};
+
 function EndpointsEditor({ rows, onChange }: { rows: EndpointRow[]; onChange: (rows: EndpointRow[]) => void }) {
   const update = (i: number, patch: Partial<EndpointRow>) => onChange(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const remove = (i: number) => onChange(rows.filter((_, idx) => idx !== i));
@@ -216,14 +293,18 @@ function EndpointsEditor({ rows, onChange }: { rows: EndpointRow[]; onChange: (r
   return (
     <div>
       <Label>{t('sources.endpointsLabel')}</Label>
+      <p className="text-xs text-stone-400 mb-2">{t('sources.urlHint')}</p>
       {rows.length === 0 && <p className="text-xs text-stone-400 mb-2">{t('sources.endpointsEmpty')}</p>}
       {rows.map((r, i) => (
-        <div key={i} className="mb-2 rounded-lg border border-stone-200 bg-stone-50/60 p-2 flex items-center gap-2">
-          <Select value={r.protocol} onChange={(e) => update(i, { protocol: e.target.value })} className="w-56 shrink-0">
-            {PROVIDERS.map((p) => <option key={p.v} value={p.v}>{t(p.key)}</option>)}
-          </Select>
-          <Input value={r.baseUrl || ''} onChange={(e) => update(i, { baseUrl: e.target.value })} placeholder={t('sources.placeholderUrl')} />
-          <Button size="sm" variant="ghost" onClick={() => remove(i)}><Trash2 size={13} className="text-red-500" /></Button>
+        <div key={i} className="mb-2 rounded-lg border border-stone-200 bg-stone-50/60 p-2 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Select value={r.protocol} onChange={(e) => update(i, { protocol: e.target.value })} className="w-56 shrink-0">
+              {PROVIDERS.map((p) => <option key={p.v} value={p.v}>{t(p.key)}</option>)}
+            </Select>
+            <div className="flex-1" />
+            <Button size="sm" variant="ghost" onClick={() => remove(i)}><Trash2 size={13} className="text-red-500" /></Button>
+          </div>
+          <Input value={r.baseUrl || ''} onChange={(e) => update(i, { baseUrl: e.target.value })} placeholder={URL_PLACEHOLDER[r.protocol] || t('sources.placeholderUrl')} />
         </div>
       ))}
       <Button size="sm" variant="default" onClick={add}><Plus size={13} /> {t('sources.addEndpoint')}</Button>

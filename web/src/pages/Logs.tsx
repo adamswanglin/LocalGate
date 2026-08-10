@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, LogRow, Settings } from '../lib/api.js';
 import { Button, Input, Select, Badge, Card, StatCard, SkeletonRow, EmptyState, Toggle } from '../components/ui.js';
-import { Trash2, ChevronLeft, ChevronRight, Tag as TagIcon, X, Filter, ScrollText, Clock, Zap, Settings as Cog, Star } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, Tag as TagIcon, X, Filter, ScrollText, Clock, Zap, Settings as Cog, Star, RefreshCw } from 'lucide-react';
 import { t, fmtDate } from '../lib/i18n.js';
 
 const PAGE = 25;
@@ -93,7 +93,10 @@ export default function LogsPage() {
           <h1 className="text-xl font-semibold text-stone-800 tracking-tight">{t('logs.title')}</h1>
           <p className="text-sm text-stone-500 mt-1">{t('logs.total', { total })}</p>
         </div>
-        <Button variant="danger" size="sm" onClick={clearAll}><Trash2 size={14} /> {t('logs.clear')}</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => load()} title={t('logs.refresh')}><RefreshCw size={14} /> {t('logs.refresh')}</Button>
+          <Button variant="danger" size="sm" onClick={clearAll}><Trash2 size={14} /> {t('logs.clear')}</Button>
+        </div>
       </div>
 
       {/* 全局日志配置 */}

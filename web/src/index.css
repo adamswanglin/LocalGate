@@ -71,9 +71,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 表单控件默认不继承字体，强制统一为应用 sans 字体（含下拉 <option> 列表） */
+/* 表单控件默认不继承字体，强制统一为应用 sans 的字体（含下拉 <option> 列表） */
 input, button, select, textarea, option, optgroup {
   font-family: var(--font-sans);
+}
+
+/* 彻底隐藏原生 select 下拉箭头，避免与自定义 ChevronDown 重复 */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+select::-ms-expand {
+  display: none;
 }
 
 /* 原生 <option> 字号由浏览器决定且偏大，统一到正文小号 */

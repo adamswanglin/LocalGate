@@ -1,4 +1,5 @@
 import { sqlite } from '../db/index.js';
+import { logSystemWarn } from './syslog.js';
 
 /** 日志总量上限默认值（非收藏记录达到该量级后触发清理）。 */
 export const DEFAULT_LOG_CAP = 10000;
@@ -53,9 +54,9 @@ export function trimLogsOnce(cap?: number): number {
 /** 启动定期清理。返回停止函数（测试用）。每次 tick 都读取最新的配置上限。 */
 export function startLogRetention(intervalMs = DEFAULT_INTERVAL_MS): () => void {
   // 启动后立即跑一次，再按间隔执行
-  try { trimLogsOnce(); } catch (e) { console.error('[retention] trim failed', e); }
+  try { trimLogsOnce(); } catch (e) { logSystemWarn('retention', '日志清理失败', e instanceof Error ? e.message : e); }
   const timer = setInterval(() => {
-    try { trimLogsOnce(); } catch (e) { console.error('[retention] trim failed', e); }
+    try { trimLogsOnce(); } catch (e) { logSystemWarn('retention', '日志清理失败', e instanceof Error ? e.message : e); }
   }, intervalMs);
   timer.unref?.();
   return () => clearInterval(timer);

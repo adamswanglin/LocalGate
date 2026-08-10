@@ -96,8 +96,27 @@ const DDL = [
      id INTEGER PRIMARY KEY,
      log_io INTEGER NOT NULL DEFAULT 1,
      log_stream_body INTEGER NOT NULL DEFAULT 1,
-     log_cap INTEGER NOT NULL DEFAULT 10000
+     log_cap INTEGER NOT NULL DEFAULT 10000,
+     proxy_url TEXT
    )`,
+  `CREATE TABLE IF NOT EXISTS t_proxy_daily_stats (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     stat_date TEXT NOT NULL,
+     channel_id INTEGER,
+     channel_name TEXT,
+     source_id INTEGER,
+     protocol TEXT NOT NULL,
+     model TEXT,
+     calls INTEGER NOT NULL DEFAULT 0,
+     error_calls INTEGER NOT NULL DEFAULT 0,
+     input_tokens INTEGER NOT NULL DEFAULT 0,
+     cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+     output_tokens INTEGER NOT NULL DEFAULT 0,
+     total_cost REAL NOT NULL DEFAULT 0
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_daily_stats
+     ON t_proxy_daily_stats (stat_date, channel_id, source_id, protocol, model)`,
+  `CREATE INDEX IF NOT EXISTS idx_daily_stats_date ON t_proxy_daily_stats (stat_date)`,
 ];
 
 /** 给历史表补列（从旧版本升级时调用；新建库无副作用） */
@@ -112,6 +131,7 @@ const ADD_COLUMN: Array<[table: string, col: string, def: string]> = [
   ['t_proxy_call_logs', 'total_cost', 'REAL'],
   ['t_proxy_channels', 'active_binding_id', 'INTEGER'],
   ['t_proxy_settings', 'log_cap', 'INTEGER NOT NULL DEFAULT 10000'],
+  ['t_proxy_settings', 'proxy_url', 'TEXT'],
 ];
 
 /**
@@ -177,6 +197,44 @@ function backfillLegacyChannels(sqlite: BetterSqlite3Db) {
   }
 }
 
+/**
+ * 历史数据迁移：旧的 base_url 存的是「去掉路径后缀的 Base URL」（路由再拼 upstreamSuffix）。
+ * 现改为存「完整 API 地址」，故把每个端点的 base_url 补上对应协议的完整路径。
+ * 幂等：若 base_url 已以完整路径结尾则跳过。
+ */
+function migrateEndpointsToFullUrl(sqlite: BetterSqlite3Db) {
+  const SUFFIX: Record<string, string> = {
+    openai_chat: '/chat/completions',
+    openai_response: '/responses',
+    anthropic: '/v1/messages',
+  };
+  const rows = sqlite.prepare(
+    `SELECT id, protocol, base_url FROM t_proxy_source_endpoints`,
+  ).all() as Array<{ id: number; protocol: string; base_url: string }>;
+  if (!rows.length) return;
+
+  const updEndpoint = sqlite.prepare(
+    `UPDATE t_proxy_source_endpoints SET base_url = ? WHERE id = ?`,
+  );
+  for (const r of rows) {
+    const suffix = SUFFIX[r.protocol];
+    if (!suffix) continue;
+    const base = r.base_url.replace(/\/+$/, '');
+    if (!base || base.endsWith(suffix)) continue; // 已是完整地址
+    updEndpoint.run(base + suffix, r.id);
+  }
+
+  // 同步 t_proxy_sources 的镜像列 base_url（取同协议端点的完整地址）
+  sqlite.exec(
+    `UPDATE t_proxy_sources SET base_url = COALESCE(
+       (SELECT base_url FROM t_proxy_source_endpoints
+        WHERE source_id = t_proxy_sources.id AND protocol = t_proxy_sources.provider
+        LIMIT 1),
+       base_url
+     )`,
+  );
+}
+
 export function initSchema(sqlite: BetterSqlite3Db) {
   sqlite.exec('PRAGMA journal_mode = WAL;');
   sqlite.exec('PRAGMA foreign_keys = ON;');
@@ -192,6 +250,9 @@ export function initSchema(sqlite: BetterSqlite3Db) {
 
   // 老源回填协议地址（多协议改造：旧 provider/base_url → 一条端点）
   backfillSourceEndpoints(sqlite);
+
+  // 旧 base_url（Base URL）迁移为完整 API 地址
+  migrateEndpointsToFullUrl(sqlite);
 
   // 老通道迁移为新绑定模型
   backfillLegacyChannels(sqlite);

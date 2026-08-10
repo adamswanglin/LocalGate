@@ -87,7 +87,7 @@ export const callLogs = sqliteTable('t_proxy_call_logs', {
   channelName: text('channel_name'),
   sourceId: integer('source_id'),
   protocol: text('protocol').notNull(),
-  // 记录对外模型名（用户视角标识）
+  // 记录真实上游模型名（转发给上游时 body.model 用的名字）；入口已由 channel_id/channel_name 标识
   model: text('model'),
   isStream: integer('is_stream').default(0).notNull(),
   statusCode: integer('status_code'),
@@ -114,6 +114,28 @@ export const callLogs = sqliteTable('t_proxy_call_logs', {
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
 });
 
+// 每日用量统计：独立于调用日志落表，关闭「记录出入参」也不影响统计。
+// 粒度 = (日期, 入口, 上游源, 协议, 真实上游模型)；统计页按各维度聚合（sum）即可。
+export const dailyStats = sqliteTable('t_proxy_daily_stats', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  statDate: text('stat_date').notNull(), // 'YYYY-MM-DD'（本地时区）
+  channelId: integer('channel_id'),
+  channelName: text('channel_name'),
+  sourceId: integer('source_id'),
+  protocol: text('protocol').notNull(),
+  model: text('model'),
+  // 调用次数（含成功与失败）
+  calls: integer('calls').default(0).notNull(),
+  // 其中调用错误数（HTTP >=400 或上游连接失败）
+  errorCalls: integer('error_calls').default(0).notNull(),
+  inputTokens: integer('input_tokens').default(0).notNull(),
+  cachedInputTokens: integer('cached_input_tokens').default(0).notNull(),
+  outputTokens: integer('output_tokens').default(0).notNull(),
+  totalCost: real('total_cost').default(0).notNull(),
+}, (t) => [
+  uniqueIndex('ux_daily_stats').on(t.statDate, t.channelId, t.sourceId, t.protocol, t.model),
+]);
+
 // 访问令牌（不配置任何 token 时，代理放行空 key 访问）
 export const tokens = sqliteTable('t_proxy_tokens', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -135,6 +157,8 @@ export const settings = sqliteTable('t_proxy_settings', {
   logStreamBody: integer('log_stream_body').default(1).notNull(),
   // 日志总量上限（非收藏记录达到该量级后触发清理）
   logCap: integer('log_cap').default(10000).notNull(),
+  // 出站代理服务器地址（如 http://host:port）；为空则直连上游
+  proxyUrl: text('proxy_url'),
 });
 
 export type Source = typeof sources.$inferSelect;
@@ -148,6 +172,8 @@ export type NewChannel = typeof channels.$inferInsert;
 export type ChannelSource = typeof channelSources.$inferSelect;
 export type NewChannelSource = typeof channelSources.$inferInsert;
 export type CallLog = typeof callLogs.$inferSelect;
+export type DailyStat = typeof dailyStats.$inferSelect;
+export type NewDailyStat = typeof dailyStats.$inferInsert;
 export type Token = typeof tokens.$inferSelect;
 export type NewToken = typeof tokens.$inferInsert;
 export type Settings = typeof settings.$inferSelect;

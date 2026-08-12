@@ -54,8 +54,8 @@
     "vite": "^6.0.7"
   },
   "build": {
-    "appId": "com.wanglin.localgate",
-    "productName": "LocalGate",
+    "appId": "com.wanglin.localrouter",
+    "productName": "LocalRouter",
     "directories": {
       "output": "release"
     },
@@ -107,7 +107,7 @@
     "publish": {
       "provider": "github",
       "owner": "adamswanglin",
-      "repo": "LocalGate",
+      "repo": "LocalRouter",
       "releaseType": "release"
     },
     "forceCodeSigning": false

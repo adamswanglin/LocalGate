@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="build/icon.svg" width="128" height="128" alt="LocalGate">
+  <img src="build/icon.svg" width="128" height="128" alt="LocalRouter">
 </p>
 
-# LocalGate
+# LocalRouter
 
 **100% 本地运行的 AI 接口代理网关 — 完全跑在你自己的机器上，无需上云、无需注册。多模型统一代理，实时日志、费用追踪与用量分析。**
 
 [English](README.md)
 
-## 为什么需要 LocalGate？
+## 为什么需要 LocalRouter？
 
 当你同时使用多个 AI 服务商（OpenAI、Anthropic、Azure、Ollama 等），通常会遇到这些问题：
 
@@ -17,7 +17,7 @@
 - 无法直观看到 token 消耗和费用
 - 出问题时无从排查请求内容
 
-LocalGate 用一个本地网关解决所有问题。你的应用只需对接 LocalGate，后续的服务商管理、模型切换、路由调整全部在可视化面板中完成——**无需改代码**。
+LocalRouter 用一个本地网关解决所有问题。你的应用只需对接 LocalRouter，后续的服务商管理、模型切换、路由调整全部在可视化面板中完成——**无需改代码**。
 
 ## 功能特性
 
@@ -52,8 +52,8 @@ make run
 ### 作为服务运行
 
 ```bash
-git clone https://github.com/your-username/localgate.git
-cd localgate
+git clone https://github.com/your-username/localrouter.git
+cd localrouter
 pnpm install
 ./start.sh          # 前台运行（Ctrl+C 停止）
 ./start.sh -d       # 后台运行
@@ -102,7 +102,7 @@ pnpm install
 
 ### 第三步：调用代理
 
-在请求中使用对外模型名即可，LocalGate 自动完成路由：
+在请求中使用对外模型名即可，LocalRouter 自动完成路由：
 
 ```bash
 # OpenAI Chat 格式

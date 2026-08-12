@@ -63,7 +63,7 @@ jobs:
           done
           [ "$COUNT" -ge 1 ] || { echo "::error::no .node found in release"; exit 1; }
           # 体积护栏：mac zip 正常 ~101M，超过 250M 视为膨胀
-          ZIP=$(find release -name 'LocalGate-*-mac.zip' | head -1)
+          ZIP=$(find release -name 'LocalRouter-*-mac.zip' | head -1)
           if [ -n "$ZIP" ]; then
             SZ=$(wc -c < "$ZIP" | tr -d ' ')
             echo "zip size: $SZ bytes ($ZIP)"
@@ -75,8 +75,8 @@ jobs:
         with:
           name: macos-arm64
           path: |
-            release/LocalGate-*.dmg
-            release/LocalGate-*-arm64-mac.zip
+            release/LocalRouter-*.dmg
+            release/LocalRouter-*-arm64-mac.zip
             release/*.blockmap
             release/latest-mac.yml
           if-no-files-found: warn

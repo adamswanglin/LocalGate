@@ -1,4 +1,4 @@
-// LocalGate — Electron 主进程（CommonJS）
+// LocalRouter — Electron 主进程（CommonJS）
 // 将 Hono 服务作为子进程启动（ELECTRON_RUN_AS_NODE=1，复用 Electron 内置 Node，
 // 与按 Electron ABI 重编的 better-sqlite3 匹配），再用 BrowserWindow 加载同源 React UI。
 const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, ipcMain } = require('electron');
@@ -107,12 +107,12 @@ function createTray() {
   const image = nativeImage.createFromPath(join(__dirname, '..', 'electron', 'trayTemplate.png'));
   image.setTemplateImage(true);
   tray = new Tray(image);
-  tray.setToolTip('LocalGate');
+  tray.setToolTip('LocalRouter');
   const ctxMenu = Menu.buildFromTemplate([
-    { label: '打开 LocalGate', click: showWindow },
+    { label: '打开 LocalRouter', click: showWindow },
     { type: 'separator' },
     {
-      label: '退出 LocalGate',
+      label: '退出 LocalRouter',
       click: () => {
         isQuitting = true;
         app.quit(); // before-quit 中会回收服务子进程
@@ -151,7 +151,7 @@ if (!gotLock) {
       height: 840,
       minWidth: 960,
       minHeight: 600,
-      title: 'LocalGate',
+      title: 'LocalRouter',
       backgroundColor: '#f6f7fb',
       show: false,
       webPreferences: {

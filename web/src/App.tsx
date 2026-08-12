@@ -116,11 +116,11 @@ export default function App() {
           <div className="px-4 py-3 border-t border-stone-100 space-y-2">
             <div className="flex items-center justify-between">
               <a
-                href="https://github.com/adamswanglin/LocalGate"
+                href="https://github.com/adamswanglin/LocalRouter"
                 target="_blank"
                 rel="noreferrer"
                 className="group flex items-center text-stone-400 hover:text-brand-600 transition-colors no-underline"
-                title="github.com/adamswanglin/LocalGate"
+                title="github.com/adamswanglin/LocalRouter"
               >
                 <Github size={16} />
               </a>

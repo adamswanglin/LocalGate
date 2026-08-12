@@ -9,7 +9,7 @@ export type LocaleSetting = Locale | 'auto'; // 'auto' = 跟随系统
 export const LOCALES: Locale[] = ['zh-CN', 'zh-TW', 'en', 'ja', 'ko'];
 export const DEFAULT_SETTING: LocaleSetting = 'auto';
 
-const STORAGE_KEY = 'localgate.locale';
+const STORAGE_KEY = 'localrouter.locale';
 
 // 语种选项（各语种用自身母语名展示；'auto' 单独走 t('lang.auto')）
 export const LANGUAGES: { value: LocaleSetting; label: string }[] = [
@@ -104,7 +104,7 @@ const MESSAGES: Record<string, Entry> = {
   'common.saveFailed': { 'zh-CN': '保存失败', 'zh-TW': '儲存失敗', en: 'Save failed', ja: '保存に失敗しました', ko: '저장 실패' },
 
   // ── 应用 ──
-  'app.name': { 'zh-CN': 'LocalGate', 'zh-TW': 'LocalGate', en: 'LocalGate', ja: 'LocalGate', ko: 'LocalGate' },
+  'app.name': { 'zh-CN': 'LocalRouter', 'zh-TW': 'LocalRouter', en: 'LocalRouter', ja: 'LocalRouter', ko: 'LocalRouter' },
   'app.tagline': { 'zh-CN': 'AI 接口代理网关', 'zh-TW': 'AI 介面代理閘道', en: 'AI API Proxy Gateway', ja: 'AI API プロキシゲートウェイ', ko: 'AI API 프록시 게이트웨이' },
   'nav.sources': { 'zh-CN': '上游源', 'zh-TW': '上游源', en: 'Sources', ja: '上流ソース', ko: '업스트림 소스' },
   'nav.sourcesDesc': { 'zh-CN': 'AI 服务配置', 'zh-TW': 'AI 服務設定', en: 'AI service config', ja: 'AI サービス設定', ko: 'AI 서비스 설정' },

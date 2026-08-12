@@ -84,7 +84,7 @@ if is_running; then
 fi
 
 MODE="${1:-run}"
-info "启动 LocalGate → http://localhost:${PORT}  (管理后台 / API 代理同端口)"
+info "启动 LocalRouter → http://localhost:${PORT}  (管理后台 / API 代理同端口)"
 
 if [[ "$MODE" == "-d" ]]; then
   # 后台

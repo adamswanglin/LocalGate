@@ -33,7 +33,7 @@ app.get('*', (c) => {
     return c.html(html);
   }
   return c.json({
-    name: 'localgate',
+    name: 'localrouter',
     note: 'web UI not built. run `pnpm dev:web` to develop, or `pnpm build:web` then restart.',
     endpoints: ['/v1/chat/completions', '/v1/responses', '/v1/messages', '/api/*'],
   });
@@ -41,7 +41,7 @@ app.get('*', (c) => {
 
 const port = Number(process.env.PORT || 8787);
 serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`LocalGate listening on http://localhost:${info.port}`);
+  console.log(`LocalRouter listening on http://localhost:${info.port}`);
 });
 
 // 启动日志容量保留：定期把非收藏日志总量收敛到 1W 以内

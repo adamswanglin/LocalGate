@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="build/icon.svg" width="128" height="128" alt="LocalGate">
+  <img src="build/icon.svg" width="128" height="128" alt="LocalRouter">
 </p>
 
-# LocalGate
+# LocalRouter
 
 **A 100% local AI API proxy gateway — runs entirely on your own machine, no cloud, no sign-up. Unify multiple AI providers behind one endpoint with real-time logging, cost tracking, and usage analytics.**
 
 [中文文档](README_zh.md)
 
-## Why LocalGate?
+## Why LocalRouter?
 
 When working with multiple AI providers (OpenAI, Anthropic, Azure, Ollama, etc.), you face common challenges:
 
@@ -17,7 +17,7 @@ When working with multiple AI providers (OpenAI, Anthropic, Azure, Ollama, etc.)
 - No visibility into token usage or costs
 - No way to debug or inspect API calls
 
-LocalGate solves all of this with a single local gateway. Point your app at LocalGate once, then manage providers, models, and routing through a visual dashboard — no code changes needed.
+LocalRouter solves all of this with a single local gateway. Point your app at LocalRouter once, then manage providers, models, and routing through a visual dashboard — no code changes needed.
 
 ## Features
 
@@ -52,8 +52,8 @@ make run
 ### Run as Server
 
 ```bash
-git clone https://github.com/your-username/localgate.git
-cd localgate
+git clone https://github.com/your-username/localrouter.git
+cd localrouter
 pnpm install
 ./start.sh          # foreground (Ctrl+C to stop)
 ./start.sh -d       # or background mode
@@ -102,7 +102,7 @@ You can bind the same entry to multiple upstreams and switch between them at any
 
 ### Step 3: Call the Proxy
 
-Use the exposed model name in your requests. LocalGate handles the rest:
+Use the exposed model name in your requests. LocalRouter handles the rest:
 
 ```bash
 # OpenAI Chat format

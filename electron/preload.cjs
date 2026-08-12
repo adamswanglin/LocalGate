@@ -1,4 +1,4 @@
-// LocalGate — preload（CommonJS）
+// LocalRouter — preload（CommonJS）
 // 向渲染层暴露「是否运行在桌面壳内」的最小标识，用于启用原生样式（拖拽区、让位红绿灯）。
 // 同时暴露自动更新相关的 IPC 通道，供前端触发检查 / 下载 / 安装。
 const { contextBridge, ipcRenderer } = require('electron');

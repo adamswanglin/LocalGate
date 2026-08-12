@@ -223,4 +223,12 @@ export const api = {
       req<{ rows: SyslogEntry[] }>(`/api/system-logs?limit=${limit}`),
     clear: () => req('/api/system-logs', { method: 'DELETE' }),
   },
+  docs: {
+    openapi: () => req<any>('/openapi.json'),
+    markdown: async () => {
+      const res = await fetch('/openapi.md');
+      if (!res.ok) throw new Error('openapi.md load failed');
+      return res.text();
+    },
+  },
 };

@@ -10,6 +10,8 @@ export default defineConfig({
     proxy: {
       '/v1': 'http://localhost:8787',
       '/api': 'http://localhost:8787',
+      '/openapi.json': 'http://localhost:8787',
+      '/openapi.md': 'http://localhost:8787',
     },
   },
   build: {

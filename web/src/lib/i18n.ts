@@ -412,6 +412,34 @@ const MESSAGES: Record<string, Entry> = {
   // ── 语言切换器 ──
   'lang.auto': { 'zh-CN': '跟随系统', 'zh-TW': '跟隨系統', en: 'Follow system', ja: 'システムに従う', ko: '시스템 따르기' },
   'lang.label': { 'zh-CN': '语言', 'zh-TW': '語言', en: 'Language', ja: '言語', ko: '언어' },
+
+  // ── API 文档 ApiDocs ──
+  'nav.apiDocs': { 'zh-CN': 'API 文档', 'zh-TW': 'API 文檔', en: 'API Docs', ja: 'API ドキュメント', ko: 'API 문서' },
+  'nav.apiDocsDesc': { 'zh-CN': '对外接口定义', 'zh-TW': '對外介面定義', en: 'External API spec', ja: '外部 API 仕様', ko: '외부 API 사양' },
+  'docs.title': { 'zh-CN': 'API 文档', 'zh-TW': 'API 文檔', en: 'API Docs', ja: 'API ドキュメント', ko: 'API 문서' },
+  'docs.subtitle': { 'zh-CN': '提供给 AI 客户端的接口定义；支持复制为 Markdown / OpenAPI 文档', 'zh-TW': '提供給 AI 客戶端的介面定義；支援複製為 Markdown / OpenAPI 文件', en: 'API definitions for AI clients; copy as Markdown / OpenAPI', ja: 'AI クライアント向けの API 仕様。Markdown / OpenAPI としてコピー可能', ko: 'AI 클라이언트용 API 정의. Markdown / OpenAPI로 복사 가능' },
+  'docs.copyMarkdown': { 'zh-CN': '复制 Markdown', 'zh-TW': '複製 Markdown', en: 'Copy Markdown', ja: 'Markdown をコピー', ko: 'Markdown 복사' },
+  'docs.copyOpenapi': { 'zh-CN': '复制 OpenAPI', 'zh-TW': '複製 OpenAPI', en: 'Copy OpenAPI', ja: 'OpenAPI をコピー', ko: 'OpenAPI 복사' },
+  'docs.copyCurl': { 'zh-CN': '复制 curl', 'zh-TW': '複製 curl', en: 'Copy curl', ja: 'curl をコピー', ko: 'curl 복사' },
+  'docs.copyFailed': { 'zh-CN': '复制失败', 'zh-TW': '複製失敗', en: 'Copy failed', ja: 'コピーに失敗しました', ko: '복사 실패' },
+  'docs.loadFailed': { 'zh-CN': '加载 API 文档失败', 'zh-TW': '載入 API 文件失敗', en: 'Failed to load API docs', ja: 'API ドキュメントの読み込みに失敗しました', ko: 'API 문서를 불러오지 못했습니다' },
+  'docs.baseUrls': { 'zh-CN': '接入地址 BaseURL', 'zh-TW': '接入位址 BaseURL', en: 'Endpoint BaseURL', ja: 'エンドポイント BaseURL', ko: '엔드포인트 BaseURL' },
+  'docs.specEndpoints': { 'zh-CN': '规格地址', 'zh-TW': '規格位址', en: 'Spec URLs', ja: '仕様 URL', ko: '사양 URL' },
+  'docs.auth': { 'zh-CN': '认证 Authentication', 'zh-TW': '認證 Authentication', en: 'Authentication', ja: '認証 Authentication', ko: '인증 Authentication' },
+  'docs.authLoading': { 'zh-CN': '加载中…', 'zh-TW': '載入中…', en: 'Loading…', ja: '読み込み中…', ko: '불러오는 중…' },
+  'docs.method': { 'zh-CN': '方式', 'zh-TW': '方式', en: 'Method', ja: '方式', ko: '방식' },
+  'docs.header': { 'zh-CN': 'Header', 'zh-TW': 'Header', en: 'Header', ja: 'Header', ko: 'Header' },
+  'docs.value': { 'zh-CN': '值', 'zh-TW': '值', en: 'Value', ja: '値', ko: '값' },
+  'docs.appliesTo': { 'zh-CN': '适用接口', 'zh-TW': '適用介面', en: 'Applies to', ja: '対象 API', ko: '적용 API' },
+  'docs.models': { 'zh-CN': '当前可用对外模型', 'zh-TW': '目前可用對外模型', en: 'Available exposed models', ja: '利用可能な公開モデル', ko: '사용 가능한 노출 모델' },
+  'docs.endpoints': { 'zh-CN': '接口列表', 'zh-TW': '介面列表', en: 'Endpoints', ja: 'エンドポイント', ko: '엔드포인트' },
+  'docs.requestBody': { 'zh-CN': '请求体 Request Body', 'zh-TW': '請求體 Request Body', en: 'Request Body', ja: 'リクエストボディ', ko: '요청 본문' },
+  'docs.responses': { 'zh-CN': '响应 Responses', 'zh-TW': '回應 Responses', en: 'Responses', ja: 'レスポンス', ko: '응답' },
+  'docs.curl': { 'zh-CN': '调用示例 curl', 'zh-TW': '呼叫範例 curl', en: 'Example (curl)', ja: '例（curl）', ko: '예시 (curl)' },
+  'docs.field': { 'zh-CN': '字段', 'zh-TW': '欄位', en: 'Field', ja: 'フィールド', ko: '필드' },
+  'docs.type': { 'zh-CN': '类型', 'zh-TW': '類型', en: 'Type', ja: '型', ko: '타입' },
+  'docs.required': { 'zh-CN': '必填', 'zh-TW': '必填', en: 'Required', ja: '必須', ko: '필수' },
+  'docs.desc': { 'zh-CN': '说明', 'zh-TW': '說明', en: 'Description', ja: '説明', ko: '설명' },
 };
 
 function resolveEntry(entry: Entry, locale: Locale): string {

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import proxy from './routes/proxy.js';
 import admin from './routes/admin.js';
+import docs from './routes/docs.js';
 import { startLogRetention } from './lib/log-retention.js';
 
 const app = new Hono();
@@ -19,6 +20,8 @@ app.get('/health', (c) => c.json({ ok: true }));
 app.route('/', proxy);
 // 管理 API
 app.route('/', admin);
+// 对外 API 文档（OpenAPI JSON + Markdown）
+app.route('/', docs);
 
 // 静态资源（绝对路径，保证打包态 cwd 不确定时仍可解析）
 app.use('/assets/*', serveStatic({ root: webDist }));

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Agent, ProxyAgent } from 'undici';
 import { db, schema, sqlite } from '../db/index.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { Protocol, PROTOCOLS } from '../lib/protocol.js';
 import { normalizeUsage, type NormalizedUsage } from '../lib/usage.js';
 import { enqueueWrite } from '../lib/log-writer.js';
@@ -20,6 +20,7 @@ interface ResolvedChannel {
   exposedModel: string;
   upstreamModel: string;
   activeBindingId: number | null;
+  routingMode: string;
 }
 
 interface GlobalSettings {
@@ -148,6 +149,7 @@ async function findChannel(exposedModel: string, protocol: Protocol): Promise<Re
     exposedModel: ch.exposedModel ?? '',
     upstreamModel: ch.upstreamModel ?? '',
     activeBindingId: ch.activeBindingId,
+    routingMode: ch.routingMode ?? 'manual',
   };
 }
 
@@ -165,6 +167,185 @@ async function resolveActiveBinding(channel: ResolvedChannel) {
   const [source] = await db.select().from(schema.sources).where(eq(schema.sources.id, sourceModel.sourceId));
   if (!source) return null;
   return { binding, sourceModel, source };
+}
+
+/* ---------------- 编排（orchestration）运行时状态与路由 ---------------- */
+
+/** 连续失败阈值：达到即标记不可用 */
+const ORCHESTRATION_FAILURE_THRESHOLD = 3;
+
+export interface BindingRuntimeState {
+  consecutiveFailures: number;
+  /** epoch ms；> now 表示不可用冷却中 */
+  unavailableUntil: number;
+  lastFailureAt: number;
+}
+
+// 绑定运行时状态（内存，不落库；进程重启即清零）
+const bindingRuntime = new Map<number, BindingRuntimeState>();
+// 组内轮询游标（key = groupId，未分组用负数 bindingId 兜底）
+const groupCursors = new Map<number, number>();
+
+/** 读取某绑定的运行时健康状态（admin 编排面板用；未记录视为全零） */
+export function getBindingRuntime(bindingId: number): BindingRuntimeState {
+  const s = bindingRuntime.get(bindingId);
+  return s ? { ...s } : { consecutiveFailures: 0, unavailableUntil: 0, lastFailureAt: 0 };
+}
+
+/** 清除运行时状态：指定绑定，或整个 Map（channel 删除时清理） */
+export function resetBindingRuntime(bindingId?: number) {
+  if (bindingId == null) bindingRuntime.clear();
+  else bindingRuntime.delete(bindingId);
+}
+
+/**
+ * 记录一次绑定失败：
+ * - immediate（如 429 限流，上游明确表示「别再发了」）：无需累计到阈值，立即进入冷却；
+ * - probe（恢复探测 / 强制兜底尝试）失败不延长仍在进行的冷却 —— 否则持续流量会把冷却无限刷新，永远无法恢复；
+ * - 普通失败累计 consecutiveFailures，达到阈值后进入冷却。
+ */
+function recordBindingFailure(
+  bindingId: number,
+  retryAfterSeconds: number,
+  opts: { immediate?: boolean; probe?: boolean } = {},
+) {
+  const s = bindingRuntime.get(bindingId) || { consecutiveFailures: 0, unavailableUntil: 0, lastFailureAt: 0 };
+  const now = Date.now();
+  s.consecutiveFailures += 1;
+  s.lastFailureAt = now;
+  if (opts.immediate || s.consecutiveFailures >= ORCHESTRATION_FAILURE_THRESHOLD) {
+    // 探测失败只在不与现有冷却冲突时设置（冷却已过期 → 重新计一轮；进行中 → 保留原截止时间）
+    if (!(opts.probe && s.unavailableUntil > now)) {
+      s.unavailableUntil = now + Math.max(1, retryAfterSeconds) * 1000;
+    }
+  }
+  bindingRuntime.set(bindingId, s);
+}
+
+function recordBindingSuccess(bindingId: number) {
+  bindingRuntime.delete(bindingId);
+}
+
+/** 编排模式的候选绑定（已按 组顺序 × 组内轮询 展开并过滤不可用） */
+interface BindingCandidate {
+  bindingId: number;
+  groupId: number | null;
+  /** 组序号（0-based，含未分组虚拟组；越小越优先） */
+  groupIndex: number;
+  retryAfterSeconds: number;
+  /** 是否为不可用绑定的恢复探测 */
+  probe: boolean;
+  sourceModel: any;
+  source: any;
+}
+
+/**
+ * 构建编排候选序列：
+ * 1. 绑定按组归桶，组按 position 升序（未分组绑定兜底成队尾虚拟组）；
+ * 2. 组内按轮询游标旋转（每次请求游标 +1）；
+ * 3. 过滤不可用绑定，应用恢复探测规则：冷却到期 且 当前流量已降级到该组或更靠后的组；
+ * 4. 全部不可用且冷却未到时，忽略冷却强制纳入一轮（best-effort，避免服务完全瘫痪），
+ *    起点轮转且探测失败不延长冷却，避免持续流量把高优先组反复冲击、冷却永不过期。
+ */
+async function buildOrchestrationCandidates(channel: ResolvedChannel): Promise<BindingCandidate[]> {
+  const bindings = await db.select().from(schema.channelSources)
+    .where(eq(schema.channelSources.channelId, channel.id));
+  if (!bindings.length) return [];
+  const groups = await db.select().from(schema.orchestrationGroups)
+    .where(eq(schema.orchestrationGroups.channelId, channel.id));
+  groups.sort((a, b) => a.position - b.position);
+
+  // 归桶：named 组在前（按 position），未分组绑定合成一个虚拟组垫底
+  const buckets: Array<{ groupId: number | null; bindings: typeof bindings }> = groups.map((g) => ({
+    groupId: g.id,
+    bindings: bindings.filter((b) => b.groupId === g.id),
+  }));
+  const ungrouped = bindings.filter((b) => b.groupId == null || !groups.some((g) => g.id === b.groupId));
+  if (ungrouped.length) buckets.push({ groupId: null, bindings: ungrouped });
+  const effective = buckets.filter((bk) => bk.bindings.length);
+  if (!effective.length) return [];
+
+  const now = Date.now();
+  // 运行时可用性：cooling = 冷却中（一律跳过）；expired = 曾不可用但冷却已到期（按探测规则放行）
+  const rtOf = (b: typeof bindings[0]) => bindingRuntime.get(b.id) ?? null;
+  const isCooling = (b: typeof bindings[0]) => {
+    const rt = rtOf(b);
+    return !!rt && rt.unavailableUntil > now;
+  };
+  const wasUnavailable = (b: typeof bindings[0]) => {
+    const rt = rtOf(b);
+    return !!rt && rt.consecutiveFailures >= ORCHESTRATION_FAILURE_THRESHOLD;
+  };
+
+  // firstEligibleIndex：第一个仍含可用（非冷却）绑定的组序号 = 当前流量实际降级到的位置
+  let firstEligibleIndex = -1;
+  for (let i = 0; i < effective.length; i++) {
+    if (effective[i].bindings.some((b) => !isCooling(b))) { firstEligibleIndex = i; break; }
+  }
+
+  const candidates: BindingCandidate[] = [];
+  for (let i = 0; i < effective.length; i++) {
+    const bk = effective[i];
+    const n = bk.bindings.length;
+    const cursorKey = bk.groupId ?? -channel.id; // 未分组虚拟组用负 channel id 作游标键
+    const cursor = groupCursors.get(cursorKey) ?? 0;
+    groupCursors.set(cursorKey, cursor + 1);
+    const rotate = cursor % n;
+    const rotated = [...bk.bindings.slice(rotate), ...bk.bindings.slice(0, rotate)];
+    for (const b of rotated) {
+      if (isCooling(b)) continue; // 冷却中：跳过（全部不可用的兜底在下方处理）
+      if (wasUnavailable(b)) {
+        // 冷却到期的恢复探测：流量已降级到该组或更靠后才纳入（firstEligibleIndex >= i）
+        if (firstEligibleIndex !== -1 && firstEligibleIndex < i) continue;
+        candidates.push({
+          bindingId: b.id, groupId: b.groupId, groupIndex: i,
+          retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: true,
+          sourceModel: null, source: null,
+        });
+      } else {
+        candidates.push({
+          bindingId: b.id, groupId: b.groupId, groupIndex: i,
+          retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: false,
+          sourceModel: null, source: null,
+        });
+      }
+    }
+  }
+
+  // 兜底：所有绑定均不可用且冷却未到 → 忽略冷却强制试一轮。
+  // 起点按 channel 级游标轮转：避免每次都从最优先的组开始（那样限流的高优先组会被反复冲击，
+  // 且每次失败都把全组标记为失败）；探测失败也不会延长冷却（见 recordBindingFailure）。
+  if (!candidates.length) {
+    const flat: BindingCandidate[] = [];
+    for (let i = 0; i < effective.length; i++) {
+      for (const b of effective[i].bindings) {
+        flat.push({
+          bindingId: b.id, groupId: b.groupId, groupIndex: i,
+          retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: true,
+          sourceModel: null, source: null,
+        });
+      }
+    }
+    const forcedKey = -(channel.id + 1_000_000_000); // 与组游标键空间隔离
+    const forcedCursor = groupCursors.get(forcedKey) ?? 0;
+    groupCursors.set(forcedKey, forcedCursor + 1);
+    const rotate = flat.length ? forcedCursor % flat.length : 0;
+    candidates.push(...flat.slice(rotate), ...flat.slice(0, rotate));
+  }
+
+  // 富化 sourceModel / source（缺失保留 null，尝试时按失败处理并计数）
+  const smIds = [...new Set(bindings.map((b) => b.sourceModelId))];
+  const smRows = await db.select().from(schema.sourceModels).where(inArray(schema.sourceModels.id, smIds));
+  const smById = new Map(smRows.map((m) => [m.id, m]));
+  const srcIds = [...new Set(smRows.map((m) => m.sourceId))];
+  const srcRows = srcIds.length ? await db.select().from(schema.sources).where(inArray(schema.sources.id, srcIds)) : [];
+  const srcById = new Map(srcRows.map((s) => [s.id, s]));
+  for (const cand of candidates) {
+    const sm = smById.get(bindings.find((b) => b.id === cand.bindingId)!.sourceModelId);
+    cand.sourceModel = sm ?? null;
+    cand.source = sm ? srcById.get(sm.sourceId) ?? null : null;
+  }
+  return candidates;
 }
 
 /** 解析请求体；非法 JSON 返回 null */
@@ -187,6 +368,11 @@ function buildUpstreamHeaders(protocol: Protocol, apiKey: string, incoming: Head
   const meta = PROTOCOLS[protocol];
   h.set('content-type', incoming.get('content-type') || 'application/json');
   if (meta.upstreamAuthHeader === 'authorization') {
+    h.set('authorization', `Bearer ${apiKey}`);
+  } else if (protocol === 'anthropic') {
+    // Anthropic 兼容端点的认证头不统一：官方/GLM 接受 x-api-key，
+    // 火山 Ark coding 端点只认 Authorization Bearer —— 两个都发，上游各取所需
+    h.set('x-api-key', apiKey);
     h.set('authorization', `Bearer ${apiKey}`);
   } else {
     h.set('x-api-key', apiKey);
@@ -259,122 +445,194 @@ async function handleProxy(c: any, protocol: Protocol) {
     return c.json({ error: `no entry for model "${exposedModel}" (${protocol})` }, 404);
   }
 
-  // 当前生效绑定 → 上游源模型 → 上游源
-  const resolved = await resolveActiveBinding(channel);
-  if (!resolved) {
-    return c.json({ error: 'entry has no usable upstream binding' }, 404);
+  // 路由模式：manual = 现有单绑定逻辑；orchestration = 分组轮询 + 故障转移
+  const isOrch = channel.routingMode === 'orchestration';
+  let candidates: BindingCandidate[];
+  if (isOrch) {
+    candidates = await buildOrchestrationCandidates(channel);
+    if (!candidates.length) {
+      return c.json({ error: 'entry has no usable upstream binding' }, 404);
+    }
+  } else {
+    const resolved = await resolveActiveBinding(channel);
+    if (!resolved) {
+      return c.json({ error: 'entry has no usable upstream binding' }, 404);
+    }
+    candidates = [{
+      bindingId: resolved.binding.id, groupId: null, groupIndex: 0,
+      retryAfterSeconds: 0, probe: false,
+      sourceModel: resolved.sourceModel, source: resolved.source,
+    }];
   }
-  const { sourceModel, source } = resolved;
-  if (!source.enabled) {
-    return c.json({ error: 'upstream source unavailable' }, 502);
-  }
-  // 该源需配置了当前协议的地址（一个源可多协议，各自 base_url）
-  const [endpoint] = await db.select().from(schema.sourceEndpoints)
-    .where(and(eq(schema.sourceEndpoints.sourceId, source.id), eq(schema.sourceEndpoints.protocol, protocol)));
-  if (!endpoint) {
-    return c.json({ error: `upstream source "${source.name}" has no ${protocol} endpoint` }, 502);
-  }
 
-  const pricing: Pricing = {
-    inputPrice: sourceModel.inputPrice ?? null,
-    cachedInputPrice: sourceModel.cachedInputPrice ?? null,
-    outputPrice: sourceModel.outputPrice ?? null,
-  };
-
-  // 改写 model：对外模型名 → 上游真实模型名（来自上游源配置）
-  // upstreamModel 用于日志/统计记录（入口已由 channel 标识，model 列记真实上游模型）
-  const upstreamModel = sourceModel.model;
-  reqObj.model = upstreamModel;
-  const outReqBody = JSON.stringify(reqObj);
-
-  const upstreamUrl = buildUpstreamUrl(endpoint.baseUrl, protocol);
-  const upstreamHeaders = buildUpstreamHeaders(protocol, source.apiKey, c.req.raw.headers);
-
+  // 候选尝试序列（写入调用日志 attempts 列，便于排查「为什么轮到了某个模型」）
+  const attempts: Array<{ bindingId: number; source: string | null; model: string | null; status: number | null; error: string | null }> = [];
+  // 最后一次上游错误响应（全部候选失败时优先透传给客户端）
+  let lastErrorRes: { status: number; text: string; headers: Headers } | null = null;
   const isStream = reqObj.stream === true;
-  const startedAt = Date.now();
 
-  let upstreamRes: Response;
-  try {
-    // dispatcher 提供：连接超时 5s、可选出站代理
-    upstreamRes = await fetch(upstreamUrl, {
-      method: 'POST',
-      headers: upstreamHeaders,
-      body: outReqBody,
-      // @ts-expect-error Node 的 fetch（undici）支持 dispatcher 选项
-      dispatcher: getDispatcher(settings.proxyUrl),
-    });
-  } catch (err: any) {
+  for (let idx = 0; idx < candidates.length; idx++) {
+    const cand = candidates[idx];
+    const { source, sourceModel } = cand;
+    const startedAt = Date.now();
+
+    const attemptBase = {
+      bindingId: cand.bindingId,
+      source: source?.name ?? null,
+      model: sourceModel?.model ?? null,
+    };
+
+    // 解析上游配置：源模型 / 源 / 协议端点（缺失按失败计并转下一候选）
+    let endpoint: any = null;
+    if (sourceModel && source && source.enabled) {
+      [endpoint] = await db.select().from(schema.sourceEndpoints)
+        .where(and(eq(schema.sourceEndpoints.sourceId, source.id), eq(schema.sourceEndpoints.protocol, protocol)));
+    }
+    if (!sourceModel || !source || !source.enabled || !endpoint) {
+      const msg = !source || !source.enabled
+        ? 'upstream source unavailable'
+        : !sourceModel ? 'upstream source model missing' : `upstream source has no ${protocol} endpoint`;
+      if (isOrch) recordBindingFailure(cand.bindingId, cand.retryAfterSeconds, { probe: cand.probe });
+      attempts.push({ ...attemptBase, status: null, error: msg });
+      logSystemWarn('proxy', `上游配置不可用 [${exposedModel}]`, {
+        protocol, error: msg, source: source?.name ?? null,
+      });
+      continue;
+    }
+
+    const pricing: Pricing = {
+      inputPrice: sourceModel.inputPrice ?? null,
+      cachedInputPrice: sourceModel.cachedInputPrice ?? null,
+      outputPrice: sourceModel.outputPrice ?? null,
+    };
+
+    // 改写 model：对外模型名 → 上游真实模型名（每个候选各自改写，互不影响）
+    const upstreamModel = sourceModel.model;
+    const outReqBody = JSON.stringify({ ...reqObj, model: upstreamModel });
+
+    const upstreamUrl = buildUpstreamUrl(endpoint.baseUrl, protocol);
+    const upstreamHeaders = buildUpstreamHeaders(protocol, source.apiKey, c.req.raw.headers);
+
+    let upstreamRes: Response;
+    try {
+      // dispatcher 提供：连接超时 5s、可选出站代理
+      upstreamRes = await fetch(upstreamUrl, {
+        method: 'POST',
+        headers: upstreamHeaders,
+        body: outReqBody,
+        // @ts-expect-error Node 的 fetch（undici）支持 dispatcher 选项
+        dispatcher: getDispatcher(settings.proxyUrl),
+      });
+    } catch (err: any) {
+      const latency = Date.now() - startedAt;
+      const msg = err?.name === 'HeadersTimeoutError' || /timeout/i.test(err?.name || '')
+        ? `upstream connect timeout (${CONNECT_TIMEOUT_MS}ms)`
+        : err.message;
+      if (isOrch) recordBindingFailure(cand.bindingId, cand.retryAfterSeconds, { probe: cand.probe });
+      // 统计始终记录（连接失败计 1 次调用 + 1 次错误）
+      recordStats({ channel, source, protocol, model: upstreamModel, isError: true, usage: ZERO_USAGE, costs: null });
+      logSystemError('proxy', `上游调用失败 [${exposedModel}]`, {
+        protocol,
+        source: source.name,
+        upstreamModel,
+        url: upstreamUrl,
+        host: safeHost(upstreamUrl),
+        error: msg,
+        latency,
+      });
+      attempts.push({ ...attemptBase, status: 502, error: msg });
+      lastErrorRes = null; // 网络错误无上游响应体，最终以 502 JSON 返回
+      continue;
+    }
+
     const latency = Date.now() - startedAt;
-    const msg = err?.name === 'HeadersTimeoutError' || /timeout/i.test(err?.name || '')
-      ? `upstream connect timeout (${CONNECT_TIMEOUT_MS}ms)`
-      : err.message;
-    // 统计始终记录（连接失败计 1 次调用 + 1 次错误）
-    recordStats({ channel, source, protocol, model: upstreamModel, isError: true, usage: ZERO_USAGE, costs: null });
-    logSystemError('proxy', `上游调用失败 [${exposedModel}]`, {
-      protocol,
-      source: source.name,
-      upstreamModel,
-      url: upstreamUrl,
-      host: safeHost(upstreamUrl),
-      error: msg,
-      latency,
-    });
-    if (settings.logIo) {
-      insertLog(channel, source, protocol, upstreamModel, isStream, 502, latency, reqBody, null, null, msg, false, null, pricing);
+    const status = upstreamRes.status;
+
+    // 错误响应（>=400）：计失败并转下一候选；手动模式保持原行为直接透传。
+    // 400/422 是「请求自身不合法」（如此请求携带的 thinking 块该上游不支持），换绑定时同样会失败，
+    // 不计入绑定健康 —— 避免健康的上游被这类请求抹黑进冷却；429 是上游明确限流，立即冷却。
+    if (status >= 400) {
+      const text = await upstreamRes.text();
+      if (isOrch && status !== 400 && status !== 422) {
+        recordBindingFailure(cand.bindingId, cand.retryAfterSeconds, { immediate: status === 429, probe: cand.probe });
+      }
+      recordStats({ channel, source, protocol, model: upstreamModel, isError: true, usage: ZERO_USAGE, costs: null });
+      logSystemWarnProxy(protocol, exposedModel, status, upstreamUrl, source.name, upstreamModel, text);
+      attempts.push({ ...attemptBase, status, error: text.slice(0, 500) || `HTTP ${status}` });
+      if (!isOrch) {
+        if (settings.logIo) {
+          insertLog(channel, source, protocol, upstreamModel, isStream, status, latency, reqBody, text, null, text, false, null, pricing);
+        }
+        return new Response(text, { status, headers: forwardHeaders(upstreamRes.headers) });
+      }
+      lastErrorRes = { status, text, headers: forwardHeaders(upstreamRes.headers) };
+      continue;
     }
-    return c.json({ error: 'upstream fetch failed', detail: msg }, 502);
-  }
 
-  const latency = Date.now() - startedAt;
-  const status = upstreamRes.status;
+    // ── 成功：清除失败状态 ──
+    if (isOrch) recordBindingSuccess(cand.bindingId);
+    attempts.push({ ...attemptBase, status, error: null });
 
-  // 错误响应（>=400）：直接透传上游错误（状态码、body、关键 header 原样返回）
-  if (status >= 400) {
-    const text = await upstreamRes.text();
-    recordStats({ channel, source, protocol, model: upstreamModel, isError: true, usage: ZERO_USAGE, costs: null });
-    logSystemWarnProxy(protocol, exposedModel, status, upstreamUrl, source.name, upstreamModel, text);
-    if (settings.logIo) {
-      insertLog(channel, source, protocol, upstreamModel, isStream, status, latency, reqBody, text, null, text, false, null, pricing);
+    // ── 非流式：缓冲完整响应 ──
+    if (!isStream || !upstreamRes.body) {
+      const text = await upstreamRes.text();
+      let usage: any = null;
+      try { usage = JSON.parse(text).usage ?? null; } catch { /* ignore */ }
+      const norm = normalizeUsage(usage, protocol);
+      const costs = computeCost(norm, pricing);
+
+      // 统计始终记录（成功调用）
+      recordStats({ channel, source, protocol, model: upstreamModel, isError: false, usage: norm, costs });
+
+      if (settings.logIo) {
+        insertLog(channel, source, protocol, upstreamModel, isStream, status, latency, reqBody, text, null, null, false, usage, pricing, attempts);
+      }
+
+      const headers = new Headers();
+      headers.set('content-type', 'application/json');
+      return new Response(text, { status, headers });
     }
-    return new Response(text, { status, headers: forwardHeaders(upstreamRes.headers) });
-  }
 
-  // ── 非流式：缓冲完整响应 ──
-  if (!isStream || !upstreamRes.body) {
-    const text = await upstreamRes.text();
-    let usage: any = null;
-    try { usage = JSON.parse(text).usage ?? null; } catch { /* ignore */ }
-    const norm = normalizeUsage(usage, protocol);
-    const costs = computeCost(norm, pricing);
+    // ── 流式：纯透传 ──
+    // 始终 tee 一份用于解析 usage、落统计（关闭日志也不影响统计）；
+    // 仅在 logIo 开启时才写调用日志。
+    const wantBody = settings.logStreamBody;
+    const logIo = settings.logIo;
+    const [forClient, forLog] = upstreamRes.body.tee();
 
-    // 统计始终记录（成功调用）
-    recordStats({ channel, source, protocol, model: upstreamModel, isError: false, usage: norm, costs });
-
-    if (settings.logIo) {
-      insertLog(channel, source, protocol, upstreamModel, isStream, status, latency, reqBody, text, null, null, false, usage, pricing);
-    }
+    collectStream(forLog, {
+      channel, source, protocol, model: upstreamModel, status, latency, reqBody, wantBody, logIo, pricing,
+      attempts,
+      // 流中断计入失败（编排模式）：首字节已透传后无法再切换上游，仅记数
+      orchestration: isOrch
+        ? { bindingId: cand.bindingId, retryAfterSeconds: cand.retryAfterSeconds, probe: cand.probe }
+        : null,
+    }).catch(() => { /* swallow */ });
 
     const headers = new Headers();
-    headers.set('content-type', 'application/json');
-    return new Response(text, { status, headers });
+    headers.set('content-type', 'text/event-stream');
+    headers.set('cache-control', 'no-cache');
+    headers.set('connection', 'keep-alive');
+    return new Response(forClient, { status, headers });
   }
 
-  // ── 流式：纯透传 ──
-  // 始终 tee 一份用于解析 usage、落统计（关闭日志也不影响统计）；
-  // 仅在 logIo 开启时才写调用日志。
-  const wantBody = settings.logStreamBody;
-  const logIo = settings.logIo;
-  const [forClient, forLog] = upstreamRes.body.tee();
-
-  collectStream(forLog, {
-    channel, source, protocol, model: upstreamModel, status, latency, reqBody, wantBody, logIo, pricing,
-  }).catch(() => { /* swallow */ });
-
-  const headers = new Headers();
-  headers.set('content-type', 'text/event-stream');
-  headers.set('cache-control', 'no-cache');
-  headers.set('connection', 'keep-alive');
-  return new Response(forClient, { status, headers });
+  // ── 所有候选耗尽（仅编排模式会走到这里）：透传最后一次上游错误，否则 502 ──
+  const lastAttempt = attempts[attempts.length - 1];
+  if (lastErrorRes) {
+    if (settings.logIo) {
+      // 最后一次失败也落日志（用最后候选的上下文）
+      const cand = candidates[candidates.length - 1];
+      if (cand?.source && cand?.sourceModel) {
+        insertLog(channel, cand.source, protocol, cand.sourceModel.model, isStream, lastErrorRes.status, 0, reqBody, lastErrorRes.text, null, lastErrorRes.text, false, null, NULL_PRICING, attempts);
+      }
+    }
+    return new Response(lastErrorRes.text, { status: lastErrorRes.status, headers: lastErrorRes.headers });
+  }
+  return c.json({
+    error: 'all upstream candidates failed',
+    detail: lastAttempt?.error ?? 'no candidate',
+    attempts,
+  }, 502);
 }
 
 /** 从 URL 中提取 host（失败回退原串），用于日志里标识「调了哪个域名」。 */
@@ -429,6 +687,9 @@ async function collectStream(
     channel: ResolvedChannel; source: any; protocol: Protocol; model: string;
     status: number; latency: number; reqBody: string; wantBody: boolean; logIo: boolean;
     pricing: Pricing;
+    attempts?: any[];
+    /** 编排模式：流中断计入该绑定失败 */
+    orchestration: { bindingId: number; retryAfterSeconds: number; probe: boolean } | null;
   },
 ) {
   const reader = stream.getReader();
@@ -444,6 +705,13 @@ async function collectStream(
     raw += decoder.decode();
   } catch {
     aborted = true;
+  }
+
+  // 流中断：编排模式下计入失败（首字节已透传，无法故障转移，仅记连续失败次数）
+  if (aborted && ctx.orchestration) {
+    recordBindingFailure(ctx.orchestration.bindingId, ctx.orchestration.retryAfterSeconds, {
+      probe: ctx.orchestration.probe,
+    });
   }
 
   const { chunks, usage } = parseSse(raw);
@@ -466,6 +734,7 @@ async function collectStream(
       aborted,
       usage,
       ctx.pricing,
+      ctx.attempts,
     );
   }
 }
@@ -526,6 +795,7 @@ function insertLog(
   aborted: boolean,
   usage: any = null,
   pricing: Pricing = NULL_PRICING,
+  attempts?: any[],
 ) {
   const norm = normalizeUsage(usage, protocol);
   const costs = computeCost(norm, pricing);
@@ -551,6 +821,7 @@ function insertLog(
     totalCost: costs.totalCost,
     error,
     aborted: aborted ? 1 : 0,
+    attempts: attempts && attempts.length ? attempts : undefined,
   };
   // 异步落库：不阻塞响应返回
   enqueueWrite(() => {

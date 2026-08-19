@@ -54,6 +54,17 @@ const DDL = [
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_channel_source_model
      ON t_proxy_channel_sources (channel_id, source_model_id)`,
+  `CREATE TABLE IF NOT EXISTS t_proxy_orchestration_groups (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     channel_id INTEGER NOT NULL,
+     name TEXT NOT NULL,
+     position INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_orch_group_name
+     ON t_proxy_orchestration_groups (channel_id, name)`,
+  `CREATE INDEX IF NOT EXISTS idx_orch_group_channel
+     ON t_proxy_orchestration_groups (channel_id)`,
   `CREATE TABLE IF NOT EXISTS t_proxy_tokens (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT NOT NULL,
@@ -130,6 +141,10 @@ const ADD_COLUMN: Array<[table: string, col: string, def: string]> = [
   ['t_proxy_call_logs', 'output_cost', 'REAL'],
   ['t_proxy_call_logs', 'total_cost', 'REAL'],
   ['t_proxy_channels', 'active_binding_id', 'INTEGER'],
+  ['t_proxy_channels', 'routing_mode', "TEXT NOT NULL DEFAULT 'manual'"],
+  ['t_proxy_channel_sources', 'group_id', 'INTEGER'],
+  ['t_proxy_channel_sources', 'retry_after_seconds', 'INTEGER NOT NULL DEFAULT 300'],
+  ['t_proxy_call_logs', 'attempts', 'TEXT'],
   ['t_proxy_settings', 'log_cap', 'INTEGER NOT NULL DEFAULT 10000'],
   ['t_proxy_settings', 'proxy_url', 'TEXT'],
 ];

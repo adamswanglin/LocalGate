@@ -64,6 +64,8 @@ export const channels = sqliteTable('t_proxy_channels', {
   // 转发给上游时实际使用的模型名（反规范化当前生效绑定的模型）
   upstreamModel: text('upstream_model'),
   enabled: integer('enabled').default(1).notNull(),
+  // 路由模式：manual = 手动指定生效绑定（activeBindingId）；orchestration = 编排（分组轮询 + 故障转移）
+  routingMode: text('routing_mode').default('manual').notNull(),
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
 }, (t) => [
   // (对外模型名, 协议) 联合唯一
@@ -75,9 +77,25 @@ export const channelSources = sqliteTable('t_proxy_channel_sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   channelId: integer('channel_id').notNull(),
   sourceModelId: integer('source_model_id').notNull(),
+  // 编排分组（t_proxy_orchestration_groups.id）；为空 = 未分组（编排保存时会自动兜底成独立组）
+  groupId: integer('group_id'),
+  // 不可用重试时长（秒）：连续失败被标记不可用后，冷却该时长后允许按组顺序重新探测
+  retryAfterSeconds: integer('retry_after_seconds').default(300).notNull(),
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
 }, (t) => [
   uniqueIndex('ux_channel_source_model').on(t.channelId, t.sourceModelId),
+]);
+
+// 模型编排分组（channel 内的绑定分组：组内轮询、组间按 position 顺序故障转移）
+export const orchestrationGroups = sqliteTable('t_proxy_orchestration_groups', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  channelId: integer('channel_id').notNull(),
+  name: text('name').notNull(),
+  // 组排序，越小越优先
+  position: integer('position').default(0).notNull(),
+  createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
+}, (t) => [
+  uniqueIndex('ux_orch_group_name').on(t.channelId, t.name),
 ]);
 
 // 调用日志
@@ -111,6 +129,8 @@ export const callLogs = sqliteTable('t_proxy_call_logs', {
   tags: text('tags', { mode: 'json' }).$type<string[]>().default([]).notNull(),
   // 是否收藏（容量清理时保护 starred=1 的记录）
   starred: integer('starred').default(0).notNull(),
+  // 编排模式的本次请求候选尝试序列（JSON：[{bindingId, source, model, status, error}]）
+  attempts: text('attempts', { mode: 'json' }).$type<any[]>(),
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
 });
 
@@ -171,6 +191,8 @@ export type Channel = typeof channels.$inferSelect;
 export type NewChannel = typeof channels.$inferInsert;
 export type ChannelSource = typeof channelSources.$inferSelect;
 export type NewChannelSource = typeof channelSources.$inferInsert;
+export type OrchestrationGroup = typeof orchestrationGroups.$inferSelect;
+export type NewOrchestrationGroup = typeof orchestrationGroups.$inferInsert;
 export type CallLog = typeof callLogs.$inferSelect;
 export type DailyStat = typeof dailyStats.$inferSelect;
 export type NewDailyStat = typeof dailyStats.$inferInsert;

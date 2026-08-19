@@ -55,6 +55,8 @@ export interface ModelEntryBinding {
   inputPrice: number | null;
   cachedInputPrice: number | null;
   outputPrice: number | null;
+  groupId: number | null;
+  retryAfterSeconds: number;
 }
 
 export interface ModelEntry {
@@ -67,7 +69,34 @@ export interface ModelEntry {
   enabled: boolean;
   createdAt: string;
   activeBindingId: number | null;
+  routingMode: string;
   bindings: ModelEntryBinding[];
+}
+
+/* ---------------- 模型编排 orchestration ---------------- */
+
+export interface OrchestrationBinding extends ModelEntryBinding {
+  health: {
+    consecutiveFailures: number;
+    unavailableUntil: number;
+    unavailable: boolean;
+    lastFailureAt: number;
+  };
+}
+
+export interface OrchestrationGroupView {
+  id: number;
+  name: string;
+  position: number;
+  bindings: OrchestrationBinding[];
+}
+
+export interface OrchestrationView {
+  channelId: number;
+  protocol: string;
+  routingMode: string;
+  groups: OrchestrationGroupView[];
+  ungrouped: OrchestrationBinding[];
 }
 
 export interface Token {
@@ -179,6 +208,13 @@ export const api = {
     update: (id: number, b: any) => req<ModelEntry>(`/api/channels/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
     remove: (id: number) => req(`/api/channels/${id}`, { method: 'DELETE' }),
     setActive: (id: number, bindingId: number) => req<ModelEntry>(`/api/channels/${id}/active`, { method: 'PATCH', body: JSON.stringify({ bindingId }) }),
+  },
+  orchestration: {
+    get: (channelId: number) => req<OrchestrationView>(`/api/channels/${channelId}/orchestration`),
+    save: (channelId: number, b: { routingMode: string; groups: Array<{ name: string; bindingIds: number[] }>; bindingRetry: Record<number, number> }) =>
+      req<OrchestrationView>(`/api/channels/${channelId}/orchestration`, { method: 'PUT', body: JSON.stringify(b) }),
+    reset: (channelId: number, bindingId?: number) =>
+      req<{ ok: boolean }>(`/api/channels/${channelId}/orchestration/reset`, { method: 'POST', body: JSON.stringify(bindingId != null ? { bindingId } : {}) }),
   },
   modelGroups: {
     // 整组（一个 exposedModel 下多协议）原子保存；返回该组的全部 channel。

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api, ModelEntry, Source, Token, MetaInfo } from '../lib/api.js';
 import { Button, Input, Select, Label, Toggle, Badge, Card, Modal, SkeletonRow, CopyButton } from '../components/ui.js';
-import { Plus, Pencil, Trash2, Copy, Check, KeyRound, Globe, Lock, X, Layers, Zap } from 'lucide-react';
+import OrchestrationEditor from '../components/OrchestrationEditor.js';
+import { Plus, Pencil, Trash2, Copy, Check, KeyRound, Globe, Lock, X, Layers, Zap, Network } from 'lucide-react';
 import { t, fmtDate } from '../lib/i18n.js';
 
 const PROTOCOL_TABS = [
@@ -59,6 +60,11 @@ export default function ModelEntriesPage() {
   // 测试连通
   const [testingGroup, setTestingGroup] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult[]>>({});
+
+  // 模型编排
+  const [orchOpen, setOrchOpen] = useState(false);
+  const [orchChannel, setOrchChannel] = useState<ModelEntry | null>(null);
+  const [orchChooser, setOrchChooser] = useState<ModelEntry[] | null>(null);
 
   type TestResult = { protocol: string; ok: boolean; msg: string };
 
@@ -170,6 +176,14 @@ export default function ModelEntriesPage() {
   async function removeGroup(model: string) {
     if (!confirm(t('modelEntries.confirmDeleteGroup'))) return;
     await api.modelGroups.remove(model); load();
+  }
+
+  /* ---------- 模型编排 ---------- */
+  function startOrchestration(model: string) {
+    const channels = (groups.find((g) => g.model === model)?.channels || []).filter((c) => c.bindings.length > 0);
+    if (!channels.length) { alert(t('orch.noBindings')); return; }
+    if (channels.length === 1) { setOrchChannel(channels[0]); setOrchOpen(true); }
+    else setOrchChooser(channels); // 多协议均有绑定时先选择协议
   }
 
   /* ---------- 行内：切生效上游 / 启停 ---------- */
@@ -410,6 +424,10 @@ export default function ModelEntriesPage() {
                   <div className="flex items-center gap-1 shrink-0">
                     <Button size="sm" variant="ghost" onClick={() => testGroup(g.model)} disabled={testingGroup === g.model}><Zap size={13} /> {t('sources.test')}</Button>
                     <Button size="sm" variant="ghost" onClick={() => startEditGroup(g.model)}><Pencil size={13} /> {t('modelEntries.editGroup')}</Button>
+                    <Button size="sm" variant={g.channels.some((c) => c.routingMode === 'orchestration') ? 'default' : 'ghost'} onClick={() => startOrchestration(g.model)}>
+                      <Network size={13} /> {t('orch.button')}
+                      {g.channels.some((c) => c.routingMode === 'orchestration') && <Badge tone="green">ON</Badge>}
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => removeGroup(g.model)}><Trash2 size={13} className="text-red-500" /></Button>
                   </div>
                 </div>
@@ -525,6 +543,31 @@ export default function ModelEntriesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* 模型编排：协议选择（多协议均有绑定时） */}
+      <Modal open={!!orchChooser} onClose={() => setOrchChooser(null)} title={t('orch.pickProtocol')}>
+        <div className="space-y-2">
+          <p className="text-xs text-stone-400 mb-2">{t('orch.pickProtocolHint')}</p>
+          {(orchChooser || []).map((c) => (
+            <button
+              key={c.id}
+              onClick={() => { setOrchChannel(c); setOrchChooser(null); setOrchOpen(true); }}
+              className="w-full flex items-center justify-between rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700 hover:border-brand-400 hover:bg-brand-50/40 transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2"><Badge tone="indigo">{t(protocolKey(c.protocol))}</Badge><span className="font-mono text-xs text-stone-400">{c.bindings.length} bindings</span></span>
+              {c.routingMode === 'orchestration' && <Badge tone="green">ON</Badge>}
+            </button>
+          ))}
+        </div>
+      </Modal>
+
+      {/* 模型编排编辑器 */}
+      <OrchestrationEditor
+        open={orchOpen}
+        onClose={() => setOrchOpen(false)}
+        channel={orchChannel}
+        onSaved={load}
+      />
 
       {/* 令牌弹窗 */}
       <Modal open={tokOpen} onClose={() => setTokOpen(false)} title={tokEditId ? t('tokens.modalEdit') : t('tokens.modalCreate')}>

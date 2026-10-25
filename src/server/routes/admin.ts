@@ -248,22 +248,22 @@ function insertChannelBindings(channelId: number, list: { sourceModelId: number 
 }
 
 function replaceChannelBindings(channelId: number, list: { sourceModelId: number }[]): number[] {
-  // ⚠ 整体替换绑定会分配新的绑定 id：按 source_model_id 尽量保留编排归属（group_id / retry_after_seconds），
+  // ⚠ 整体替换绑定会分配新的绑定 id：按 source_model_id 尽量保留编排归属（orchestrated / orch_position / retry_after_seconds），
   // 避免用户编辑入口后编排配置丢失。
   const oldRows = sqlite.prepare(
-    `SELECT id, source_model_id, group_id, retry_after_seconds FROM t_proxy_channel_sources WHERE channel_id = ?`,
-  ).all(channelId) as Array<{ id: number; source_model_id: number; group_id: number | null; retry_after_seconds: number }>;
+    `SELECT id, source_model_id, orchestrated, orch_position, retry_after_seconds FROM t_proxy_channel_sources WHERE channel_id = ?`,
+  ).all(channelId) as Array<{ id: number; source_model_id: number; orchestrated: number; orch_position: number; retry_after_seconds: number }>;
   const oldBySm = new Map(oldRows.map((r) => [r.source_model_id, r]));
   const del = sqlite.prepare(`DELETE FROM t_proxy_channel_sources WHERE channel_id = ?`);
   const stmt = sqlite.prepare(
-    `INSERT INTO t_proxy_channel_sources (channel_id, source_model_id, group_id, retry_after_seconds) VALUES (?, ?, ?, ?)`,
+    `INSERT INTO t_proxy_channel_sources (channel_id, source_model_id, orchestrated, orch_position, retry_after_seconds) VALUES (?, ?, ?, ?, ?)`,
   );
   const tx = sqlite.transaction((items: { sourceModelId: number }[]) => {
     del.run(channelId);
     const ids: number[] = [];
     for (const it of items) {
       const old = oldBySm.get(it.sourceModelId);
-      const info = stmt.run(channelId, it.sourceModelId, old?.group_id ?? null, old?.retry_after_seconds ?? 300);
+      const info = stmt.run(channelId, it.sourceModelId, old?.orchestrated ?? 0, old?.orch_position ?? 0, old?.retry_after_seconds ?? 300);
       ids.push(Number(info.lastInsertRowid));
     }
     return ids;
@@ -290,7 +290,8 @@ function enrichBinding(b: any, sm: any, srcById: Map<number, any>): any {
     id: b.id,
     channelId: b.channelId,
     sourceModelId: b.sourceModelId,
-    groupId: b.groupId ?? null,
+    orchestrated: !!b.orchestrated,
+    orchPosition: b.orchPosition ?? 0,
     retryAfterSeconds: b.retryAfterSeconds ?? 300,
     sourceId: sm?.sourceId ?? null,
     sourceName: src?.name ?? (sm ? `#${sm.sourceId}` : '(unknown)'),
@@ -652,19 +653,19 @@ admin.patch('/api/channels/:id/active', async (c) => {
 
 /* ---------------- 模型编排 orchestration ---------------- */
 
-/** 组装某入口的编排视图：分组结构 + 绑定 retryAfter + 运行时健康状态 */
-function buildOrchestrationView(channel: any, bindings: any[], groups: any[]) {
+/** 组装某入口的编排视图：加入编排的有序绑定列表 + 未加入的绑定 + 运行时健康状态 */
+function buildOrchestrationView(channel: any, bindings: any[]) {
+  const orchestrated = bindings
+    .filter((b) => b.orchestrated)
+    .sort((a, b) => a.orchPosition - b.orchPosition || a.id - b.id)
+    .map(attachHealth);
+  const excluded = bindings.filter((b) => !b.orchestrated).map(attachHealth);
   return {
     channelId: channel.id,
     protocol: channel.protocol,
     routingMode: channel.routingMode ?? 'manual',
-    groups: groups.map((g, i) => ({
-      id: g.id,
-      name: g.name,
-      position: i,
-      bindings: bindings.filter((b) => b.groupId === g.id).map(attachHealth),
-    })),
-    ungrouped: bindings.filter((b) => b.groupId == null || !groups.some((g) => g.id === b.groupId)).map(attachHealth),
+    orchestrated,
+    excluded,
   };
 }
 
@@ -687,13 +688,10 @@ admin.get('/api/channels/:id/orchestration', async (c) => {
   const [channel] = await db.select().from(schema.channels).where(eq(schema.channels.id, id));
   if (!channel) return c.json({ error: 'not found' }, 404);
   const bindings = await loadChannelBindings(id);
-  const groups = await db.select().from(schema.orchestrationGroups)
-    .where(eq(schema.orchestrationGroups.channelId, id))
-    .orderBy(schema.orchestrationGroups.position);
-  return c.json(buildOrchestrationView(channel, bindings, groups));
+  return c.json(buildOrchestrationView(channel, bindings));
 });
 
-// 整体保存编排配置：{ routingMode, groups: [{name, bindingIds}], bindingRetry: {bindingId: seconds} }
+// 整体保存编排配置：{ routingMode, order: bindingId[]（按优先级升序）, bindingRetry: {bindingId: seconds} }
 admin.put('/api/channels/:id/orchestration', async (c) => {
   const id = Number(c.req.param('id'));
   const [channel] = await db.select().from(schema.channels).where(eq(schema.channels.id, id));
@@ -704,24 +702,19 @@ admin.put('/api/channels/:id/orchestration', async (c) => {
   const bindings = await db.select().from(schema.channelSources).where(eq(schema.channelSources.channelId, id));
   const bindingIds = new Set(bindings.map((b) => b.id));
 
-  // 校验 groups 结构
-  const rawGroups: Array<{ name: string; bindingIds: number[] }> = Array.isArray(body.groups) ? body.groups : [];
-  const seenBindings = new Set<number>();
-  const seenNames = new Set<string>();
-  for (let i = 0; i < rawGroups.length; i++) {
-    const name = String(rawGroups[i]?.name ?? '').trim() || `组${i + 1}`;
-    if (seenNames.has(name)) return c.json({ error: `分组名 "${name}" 重复` }, 400);
-    seenNames.add(name);
-    const ids = Array.isArray(rawGroups[i]?.bindingIds) ? rawGroups[i].bindingIds : [];
-    for (const bid of ids) {
-      const n = Number(bid);
-      if (!bindingIds.has(n)) return c.json({ error: `绑定 #${bid} 不属于该入口` }, 400);
-      if (seenBindings.has(n)) return c.json({ error: '同一绑定不能出现在多个分组' }, 400);
-      seenBindings.add(n);
-    }
+  // 校验 order：加入编排的绑定按序去重
+  const rawOrder: number[] = Array.isArray(body.order) ? body.order : [];
+  const order: number[] = [];
+  const seen = new Set<number>();
+  for (const bid of rawOrder) {
+    const n = Number(bid);
+    if (!bindingIds.has(n)) return c.json({ error: `绑定 #${bid} 不属于该入口` }, 400);
+    if (seen.has(n)) continue; // 重复忽略（保序）
+    seen.add(n);
+    order.push(n);
   }
 
-  // retryAfter 校验（bindingRetry: { [bindingId]: seconds }，对分组与未分组绑定都生效）
+  // retryAfter 校验（bindingRetry: { [bindingId]: seconds }，对所有绑定都生效）
   const retryMap = new Map<number, number>();
   if (body.bindingRetry && typeof body.bindingRetry === 'object') {
     for (const [k, v] of Object.entries(body.bindingRetry)) {
@@ -734,37 +727,10 @@ admin.put('/api/channels/:id/orchestration', async (c) => {
   }
 
   const tx = sqlite.transaction(() => {
-    // 重建分组
-    sqlite.prepare(`DELETE FROM t_proxy_orchestration_groups WHERE channel_id = ?`).run(id);
-    const insGroup = sqlite.prepare(
-      `INSERT INTO t_proxy_orchestration_groups (channel_id, name, position) VALUES (?, ?, ?)`,
-    );
-    const finalGroups: Array<{ name: string; ids: number[] }> = rawGroups.map((g, i) => ({
-      name: String(g?.name ?? '').trim() || `组${i + 1}`,
-      ids: (Array.isArray(g?.bindingIds) ? g.bindingIds : []).map(Number).filter((n) => bindingIds.has(n) && seenBindings.has(n)),
-    }));
-    // 开启编排时，未分组绑定自动各建一组（兜底，保证每个模型都有组）
-    if (routingMode === 'orchestration') {
-      const autoStart = finalGroups.length + 1;
-      let n = 0;
-      for (const b of bindings) {
-        if (!seenBindings.has(b.id)) {
-          finalGroups.push({ name: `组${autoStart + (n++)}`, ids: [b.id] });
-          seenBindings.add(b.id);
-        }
-      }
-    }
-    const groupIdByOrder: number[] = [];
-    for (let i = 0; i < finalGroups.length; i++) {
-      const info = insGroup.run(id, finalGroups[i].name, i);
-      groupIdByOrder.push(Number(info.lastInsertRowid));
-    }
-    // 更新绑定归属与 retryAfter
-    sqlite.prepare(`UPDATE t_proxy_channel_sources SET group_id = NULL WHERE channel_id = ?`).run(id);
-    const setGroup = sqlite.prepare(`UPDATE t_proxy_channel_sources SET group_id = ? WHERE id = ?`);
-    for (let i = 0; i < finalGroups.length; i++) {
-      for (const bid of finalGroups[i].ids) setGroup.run(groupIdByOrder[i], bid);
-    }
+    // 全量重置编排标记与顺序，再按 order 写回
+    sqlite.prepare(`UPDATE t_proxy_channel_sources SET orchestrated = 0, orch_position = 0 WHERE channel_id = ?`).run(id);
+    const setOrder = sqlite.prepare(`UPDATE t_proxy_channel_sources SET orchestrated = 1, orch_position = ? WHERE id = ?`);
+    order.forEach((bid, i) => setOrder.run(i, bid));
     const setRetry = sqlite.prepare(`UPDATE t_proxy_channel_sources SET retry_after_seconds = ? WHERE id = ?`);
     for (const [bid, sec] of retryMap) setRetry.run(sec, bid);
     // 切换路由模式（orchestration 下手动 activeBindingId 保留但被忽略；切回 manual 立即生效）
@@ -779,10 +745,7 @@ admin.put('/api/channels/:id/orchestration', async (c) => {
 
   const [fresh] = await db.select().from(schema.channels).where(eq(schema.channels.id, id));
   const freshBindings = await loadChannelBindings(id);
-  const freshGroups = await db.select().from(schema.orchestrationGroups)
-    .where(eq(schema.orchestrationGroups.channelId, id))
-    .orderBy(schema.orchestrationGroups.position);
-  return c.json(buildOrchestrationView(fresh, freshBindings, freshGroups));
+  return c.json(buildOrchestrationView(fresh, freshBindings));
 });
 
 // 手动恢复：清除绑定（或整个入口）的不可用状态与失败计数
@@ -804,7 +767,6 @@ admin.post('/api/channels/:id/orchestration/reset', async (c) => {
 admin.delete('/api/channels/:id', async (c) => {
   const id = Number(c.req.param('id'));
   await sqlite.prepare('DELETE FROM t_proxy_channel_sources WHERE channel_id = ?').run(id);
-  await sqlite.prepare('DELETE FROM t_proxy_orchestration_groups WHERE channel_id = ?').run(id);
   await db.delete(schema.channels).where(eq(schema.channels.id, id));
   return c.json({ ok: true });
 });
@@ -1034,9 +996,8 @@ admin.delete('/api/model-groups', async (c) => {
   const rows = await db.select({ id: schema.channels.id }).from(schema.channels)
     .where(sql`COALESCE(${schema.channels.exposedModel}, '') = ${model}`);
   const delBindings = sqlite.prepare(`DELETE FROM t_proxy_channel_sources WHERE channel_id = ?`);
-  const delGroups = sqlite.prepare(`DELETE FROM t_proxy_orchestration_groups WHERE channel_id = ?`);
   const tx = sqlite.transaction((ids: number[]) => {
-    for (const id of ids) { delBindings.run(id); delGroups.run(id); }
+    for (const id of ids) { delBindings.run(id); }
   });
   tx(rows.map((r) => r.id));
   await db.delete(schema.channels).where(sql`COALESCE(${schema.channels.exposedModel}, '') = ${model}`);

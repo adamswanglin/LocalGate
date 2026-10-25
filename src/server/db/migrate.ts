@@ -54,17 +54,6 @@ const DDL = [
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_channel_source_model
      ON t_proxy_channel_sources (channel_id, source_model_id)`,
-  `CREATE TABLE IF NOT EXISTS t_proxy_orchestration_groups (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     channel_id INTEGER NOT NULL,
-     name TEXT NOT NULL,
-     position INTEGER NOT NULL DEFAULT 0,
-     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-   )`,
-  `CREATE UNIQUE INDEX IF NOT EXISTS ux_orch_group_name
-     ON t_proxy_orchestration_groups (channel_id, name)`,
-  `CREATE INDEX IF NOT EXISTS idx_orch_group_channel
-     ON t_proxy_orchestration_groups (channel_id)`,
   `CREATE TABLE IF NOT EXISTS t_proxy_tokens (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      name TEXT NOT NULL,
@@ -142,7 +131,8 @@ const ADD_COLUMN: Array<[table: string, col: string, def: string]> = [
   ['t_proxy_call_logs', 'total_cost', 'REAL'],
   ['t_proxy_channels', 'active_binding_id', 'INTEGER'],
   ['t_proxy_channels', 'routing_mode', "TEXT NOT NULL DEFAULT 'manual'"],
-  ['t_proxy_channel_sources', 'group_id', 'INTEGER'],
+  ['t_proxy_channel_sources', 'orchestrated', 'INTEGER NOT NULL DEFAULT 0'],
+  ['t_proxy_channel_sources', 'orch_position', 'INTEGER NOT NULL DEFAULT 0'],
   ['t_proxy_channel_sources', 'retry_after_seconds', 'INTEGER NOT NULL DEFAULT 300'],
   ['t_proxy_call_logs', 'attempts', 'TEXT'],
   ['t_proxy_settings', 'log_cap', 'INTEGER NOT NULL DEFAULT 10000'],
@@ -250,6 +240,39 @@ function migrateEndpointsToFullUrl(sqlite: BetterSqlite3Db) {
   );
 }
 
+/**
+ * 旧版「编排分组」结构（t_proxy_orchestration_groups + channel_sources.group_id）
+ * 迁移为扁平有序列表（channel_sources.orchestrated + orch_position）：
+ * 组按 position 升序、组内按绑定 id 升序摊平；随后删除分组表与 group_id 列值。
+ * 幂等：分组表不存在或已清空则直接跳过。
+ */
+function migrateOrchestrationGroupsToOrder(sqlite: BetterSqlite3Db) {
+  const hasTable = sqlite.prepare(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 't_proxy_orchestration_groups'`,
+  ).get();
+  if (!hasTable) return;
+
+  const grouped = sqlite.prepare(
+    `SELECT cs.id AS binding_id, cs.channel_id
+       FROM t_proxy_channel_sources cs
+       JOIN t_proxy_orchestration_groups g ON g.id = cs.group_id
+      ORDER BY cs.channel_id, g.position, cs.id`,
+  ).all() as Array<{ binding_id: number; channel_id: number }>;
+  const byChannel = new Map<number, number[]>();
+  for (const r of grouped) {
+    if (!byChannel.has(r.channel_id)) byChannel.set(r.channel_id, []);
+    byChannel.get(r.channel_id)!.push(r.binding_id);
+  }
+  const setOrder = sqlite.prepare(
+    `UPDATE t_proxy_channel_sources SET orchestrated = 1, orch_position = ? WHERE id = ?`,
+  );
+  for (const [, ids] of byChannel) {
+    [...new Set(ids)].forEach((id, i) => setOrder.run(i, id));
+  }
+  sqlite.exec(`DELETE FROM t_proxy_orchestration_groups`);
+  sqlite.exec(`DROP TABLE IF EXISTS t_proxy_orchestration_groups`);
+}
+
 export function initSchema(sqlite: BetterSqlite3Db) {
   sqlite.exec('PRAGMA journal_mode = WAL;');
   sqlite.exec('PRAGMA foreign_keys = ON;');
@@ -271,6 +294,9 @@ export function initSchema(sqlite: BetterSqlite3Db) {
 
   // 老通道迁移为新绑定模型
   backfillLegacyChannels(sqlite);
+
+  // 旧编排分组结构迁移为扁平有序列表
+  migrateOrchestrationGroupsToOrder(sqlite);
 
   // 种子全局配置行
   sqlite.exec(`INSERT OR IGNORE INTO t_proxy_settings (id, log_io, log_stream_body, log_cap) VALUES (1, 1, 1, 10000)`);

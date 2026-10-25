@@ -177,6 +177,12 @@ const MESSAGES_REQUEST: JsonSchema = {
     tools: { type: 'array', items: { $ref: '#/components/schemas/Tool' }, description: '可用的工具（函数）列表' },
     tool_choice: { description: '工具选择策略' },
     metadata: { type: 'object', description: '用户自定义元数据' },
+    container: {
+      type: 'object',
+      description:
+        'Skills 沙箱配置（如 { "skills": [{ "type": "anthropic", "skill_id": "pptx", "version": "latest" }] }），' +
+        '需搭配 code execution 工具并携带 anthropic-beta: skills-2025-10-02 请求头（网关原样转发该头）',
+    },
   },
   additionalProperties: true,
 };
@@ -254,7 +260,7 @@ export function buildOpenApi(ctx: DocsContext): any {
         post: {
           operationId: 'createChatCompletion',
           summary: 'OpenAI Chat Completions（聊天补全）',
-          description: `以 OpenAI 官方 Chat Completions 协议调用。网关将 body.model（对外模型名）替换为上游真实模型名后转发。${authNote}`,
+          description: `以 OpenAI 官方 Chat Completions 协议调用。网关将 body.model（对外模型名）替换为上游真实模型名后转发；除 model 外，请求体其余字段（含未列出的扩展字段）与 openai-beta 等协议头均原样透传上游。${authNote}`,
           security: openaiSecurity,
           'x-curl': `curl ${servers[0].url}/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"model": "<对外模型名>", "messages": [{"role": "user", "content": "你好！"}]}'`,
           requestBody: {
@@ -294,7 +300,7 @@ export function buildOpenApi(ctx: DocsContext): any {
         post: {
           operationId: 'createResponse',
           summary: 'OpenAI Responses（通用响应）',
-          description: `以 OpenAI 官方 Responses 协议调用。网关将 body.model（对外模型名）替换为上游真实模型名后转发。${authNote}`,
+          description: `以 OpenAI 官方 Responses 协议调用。网关将 body.model（对外模型名）替换为上游真实模型名后转发；除 model 外，请求体其余字段（含未列出的扩展字段）与 openai-beta 等协议头均原样透传上游。${authNote}`,
           security: openaiSecurity,
           'x-curl': `curl ${servers[0].url}/v1/responses \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer <token>" \\\n  -d '{"model": "<对外模型名>", "input": "你好！"}'`,
           requestBody: {
@@ -334,7 +340,7 @@ export function buildOpenApi(ctx: DocsContext): any {
         post: {
           operationId: 'createMessage',
           summary: 'Anthropic Messages（消息生成）',
-          description: `以 Anthropic 官方 Messages 协议调用（需额外携带 anthropic-version 请求头）。网关将 body.model（对外模型名）替换为上游真实模型名后转发。${authNote}`,
+          description: `以 Anthropic 官方 Messages 协议调用（需额外携带 anthropic-version 请求头）。网关将 body.model（对外模型名）替换为上游真实模型名后转发；除 model 外，请求体其余字段（含 container 等扩展字段）与 anthropic-beta 请求头均原样透传上游。${authNote}`,
           security: anthropicSecurity,
           'x-curl': `curl ${servers[0].url}/v1/messages \\\n  -H "Content-Type: application/json" \\\n  -H "x-api-key: <token>" \\\n  -H "anthropic-version: 2023-06-01" \\\n  -d '{"model": "<对外模型名>", "max_tokens": 1024, "messages": [{"role": "user", "content": "你好！"}]}'`,
           requestBody: {

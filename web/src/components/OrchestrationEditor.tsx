@@ -1,32 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, OrchestrationBinding, ModelEntry } from '../lib/api.js';
-import { Button, Input, Toggle, Badge, Modal } from './ui.js';
-import { Plus, Trash2, GripVertical, RotateCcw, ArrowUp, ArrowDown, Network } from 'lucide-react';
+import { Button, Toggle, Badge, Modal } from './ui.js';
+import { Trash2, GripVertical, RotateCcw, ArrowUp, ArrowDown, Network } from 'lucide-react';
 import { t } from '../lib/i18n.js';
 
 /**
  * 模型编排编辑器：
  * - 编排模式与手动模式（activeIndex 单选）二选一；
- * - 分组卡片可拖拉/按钮排序（靠前优先），组内默认轮询；
- * - 绑定芯片可拖入任意组或移回未分组；
+ * - 加入编排的绑定可拖拽 / 按钮排序（靠前优先），固定顺序不轮询（保持上游 KV cache 命中）；
+ * - 绑定芯片可拖入「加入编排」列表，或拖出回「未加入编排」（编排时不参与路由）；
  * - 每个绑定可设「不可用重试时长」（分钟/小时）；
  * - 实时展示运行时健康状态（正常 / 连续失败 n 次 / 不可用剩余时间），支持一键恢复。
  */
-
-interface EditGroup {
-  name: string;
-  bindingIds: number[];
-}
 
 interface RetryInput {
   value: number;
   unit: 'min' | 'hour';
 }
 
-type DragPayload =
-  | { type: 'binding'; bindingId: number }
-  | { type: 'group'; index: number }
-  | null;
+type DragPayload = { type: 'binding'; bindingId: number } | null;
 
 function secondsToInput(sec: number): RetryInput {
   if (sec >= 3600 && sec % 3600 === 0) return { value: sec / 3600, unit: 'hour' };
@@ -48,11 +40,11 @@ export default function OrchestrationEditor({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'manual' | 'orchestration'>('manual');
-  const [groups, setGroups] = useState<EditGroup[]>([]);
+  const [orderedIds, setOrderedIds] = useState<number[]>([]);
   const [retry, setRetry] = useState<Record<number, RetryInput>>({});
   const [healthById, setHealthById] = useState<Record<number, OrchestrationBinding['health']>>({});
   const [drag, setDrag] = useState<DragPayload>(null);
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [tick, setTick] = useState(0); // 健康状态剩余时间刷新
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -64,34 +56,25 @@ export default function OrchestrationEditor({
     try {
       const v = await api.orchestration.get(channel.id);
       const map: Record<number, OrchestrationBinding['health']> = {};
-      for (const b of [...v.groups.flatMap((g) => g.bindings), ...v.ungrouped]) map[b.id] = b.health;
+      for (const b of [...v.orchestrated, ...v.excluded]) map[b.id] = b.health;
       setHealthById(map);
     } catch { /* ignore */ }
   }
 
-  // 打开时加载编排配置；保存后（未关闭期间）轮询健康状态
+  // 打开时加载编排配置；未关闭期间轮询健康状态
   useEffect(() => {
     if (!open || !channel) return;
     setLoading(true);
     api.orchestration.get(channel.id).then((v) => {
       setMode(v.routingMode === 'orchestration' ? 'orchestration' : 'manual');
-      const groupedIds = new Set(v.groups.flatMap((g) => g.bindings.map((b) => b.id)));
-      // 本地分组结构：named 组 + 未分组绑定（首次进入且无分组数据时，为每个绑定自动建独立组）
-      if (v.groups.length === 0 && v.ungrouped.length > 0 && v.routingMode === 'orchestration') {
-        setGroups(v.ungrouped.map((b, i) => ({ name: `组${i + 1}`, bindingIds: [b.id] })));
-      } else {
-        setGroups(v.groups.map((g) => ({
-          name: g.name,
-          bindingIds: g.bindings.map((b) => b.id),
-        })));
-        void groupedIds; // 仅用于语义清晰；未分组绑定在保存时由服务端兜底
-      }
+      setOrderedIds(v.orchestrated.map((b) => b.id));
       const map: Record<number, OrchestrationBinding['health']> = {};
-      const all = [...v.groups.flatMap((g) => g.bindings), ...v.ungrouped];
-      for (const b of all) {
+      const retryInit: Record<number, RetryInput> = {};
+      for (const b of [...v.orchestrated, ...v.excluded]) {
         map[b.id] = b.health;
-        setRetry((prev) => (prev[b.id] ? prev : { ...prev, [b.id]: secondsToInput(b.retryAfterSeconds ?? 300) }));
+        retryInit[b.id] = secondsToInput(b.retryAfterSeconds ?? 300);
       }
+      setRetry(retryInit); // 整体重置，避免残留上一个入口的绑定 ID
       setHealthById(map);
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -104,31 +87,27 @@ export default function OrchestrationEditor({
 
   /* ---------- 编辑操作 ---------- */
 
-  const groupedIds = new Set(groups.flatMap((g) => g.bindingIds));
-  const ungrouped = bindings.filter((b) => !groupedIds.has(b.id));
+  const orderedIdsSet = new Set(orderedIds);
+  const excluded = bindings.filter((b) => !orderedIdsSet.has(b.id));
 
-  function moveBinding(bindingId: number, target: { type: 'group'; index: number } | { type: 'ungrouped' }) {
-    setGroups((prev) => prev.map((g) => ({ ...g, bindingIds: g.bindingIds.filter((id) => id !== bindingId) })));
-    if (target.type === 'group') {
-      setGroups((prev) => prev.map((g, i) => (i === target.index ? { ...g, bindingIds: [...g.bindingIds, bindingId] } : g)));
-    }
-  }
-
-  function moveGroup(from: number, to: number) {
-    setGroups((prev) => {
-      if (to < 0 || to >= prev.length || from === to) return prev;
-      const next = [...prev];
-      const [g] = next.splice(from, 1);
-      next.splice(to, 0, g);
-      return next;
+  /** 把绑定移动到有序列表的指定位置（to = null 表示移出编排） */
+  function moveBinding(bindingId: number, to: number | null) {
+    setOrderedIds((prev) => {
+      const without = prev.filter((id) => id !== bindingId);
+      if (to == null) return without;
+      const idx = Math.max(0, Math.min(to, without.length));
+      return [...without.slice(0, idx), bindingId, ...without.slice(idx)];
     });
   }
 
-  function addGroup() {
-    setGroups((prev) => [...prev, { name: `组${prev.length + 1}`, bindingIds: [] }]);
-  }
-  function removeGroup(index: number) {
-    setGroups((prev) => prev.filter((_, i) => i !== index));
+  function moveOrdered(from: number, to: number) {
+    setOrderedIds((prev) => {
+      if (to < 0 || to >= prev.length || from === to) return prev;
+      const next = [...prev];
+      const [id] = next.splice(from, 1);
+      next.splice(to, 0, id);
+      return next;
+    });
   }
 
   async function resetBinding(bindingId: number) {
@@ -142,10 +121,14 @@ export default function OrchestrationEditor({
     setSaving(true);
     try {
       const bindingRetry: Record<number, number> = {};
-      for (const [k, v] of Object.entries(retry)) bindingRetry[Number(k)] = inputToSeconds(v);
+      const ownIds = new Set(bindings.map((b) => b.id));
+      for (const [k, v] of Object.entries(retry)) {
+        const id = Number(k);
+        if (ownIds.has(id)) bindingRetry[id] = inputToSeconds(v); // 只提交当前入口的绑定
+      }
       await api.orchestration.save(channel.id, {
         routingMode: mode,
-        groups: groups.map((g) => ({ name: g.name.trim() || g.name, bindingIds: g.bindingIds })),
+        order: orderedIds,
         bindingRetry,
       });
       onSaved();
@@ -154,18 +137,6 @@ export default function OrchestrationEditor({
       alert(e.message || t('common.saveFailed'));
     }
     setSaving(false);
-  }
-
-  /* ---------- 拖拽 ---------- */
-
-  function onDropGroup(index: number) {
-    if (drag?.type === 'binding') moveBinding(drag.bindingId, { type: 'group', index });
-    else if (drag?.type === 'group') moveGroup(drag.index, index);
-    setDrag(null); setDropTarget(null);
-  }
-  function onDropUngrouped() {
-    if (drag?.type === 'binding') moveBinding(drag.bindingId, { type: 'ungrouped' });
-    setDrag(null); setDropTarget(null);
   }
 
   /* ---------- 展示 ---------- */
@@ -188,14 +159,14 @@ export default function OrchestrationEditor({
     return <Badge tone="green">{t('orch.healthOk')}</Badge>;
   }
 
-  function bindingChip(b: ModelEntry['bindings'][0]) {
+  function bindingChip(b: ModelEntry['bindings'][0], extra?: React.ReactNode) {
     const r = retry[b.id] ?? secondsToInput(b.retryAfterSeconds ?? 300);
     return (
       <div
         key={b.id}
         draggable
         onDragStart={() => setDrag({ type: 'binding', bindingId: b.id })}
-        onDragEnd={() => { setDrag(null); setDropTarget(null); }}
+        onDragEnd={() => { setDrag(null); setDropIndex(null); }}
         className="rounded-lg border border-stone-200 bg-white p-2.5 space-y-2 cursor-grab active:cursor-grabbing hover:border-brand-300 transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -214,6 +185,7 @@ export default function OrchestrationEditor({
               <RotateCcw size={11} /> {t('orch.resetNow')}
             </button>
           )}
+          {extra}
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-stone-400 whitespace-nowrap">{t('orch.retryAfter')}</span>
@@ -226,12 +198,32 @@ export default function OrchestrationEditor({
           <select
             value={r.unit}
             onChange={(e) => setRetry((prev) => ({ ...prev, [b.id]: { ...r, unit: e.target.value as 'min' | 'hour' } }))}
-            className="rounded-md border border-stone-200 px-1.5 py-1 text-xs text-stone-700 focus:outline-none focus:border-brand-500 cursor-pointer"
+            className="rounded-md border border-stone-200 px-1 py-1 text-xs text-stone-700 focus:outline-none focus:border-brand-500 cursor-pointer"
           >
             <option value="min">{t('orch.unitMin')}</option>
             <option value="hour">{t('orch.unitHour')}</option>
           </select>
         </div>
+      </div>
+    );
+  }
+
+  /** 有序区中单个插槽：上半空白作为「插入到第 i 位」的落点 */
+  function orderedSlot(b: ModelEntry['bindings'][0], i: number) {
+    return (
+      <div key={b.id}>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDropIndex(i); }}
+          onDrop={(e) => { e.preventDefault(); if (drag) moveBinding(drag.bindingId, i); setDrag(null); setDropIndex(null); }}
+          className={`h-1.5 rounded transition-all ${dropIndex === i ? 'bg-brand-400 h-2.5' : ''}`}
+        />
+        {bindingChip(b, (
+          <span className="inline-flex items-center gap-0.5 ml-auto">
+            <Button size="sm" variant="ghost" onClick={() => moveOrdered(i, i - 1)} disabled={i === 0} title={t('orch.moveUp')}><ArrowUp size={13} /></Button>
+            <Button size="sm" variant="ghost" onClick={() => moveOrdered(i, i + 1)} disabled={i === orderedIds.length - 1} title={t('orch.moveDown')}><ArrowDown size={13} /></Button>
+            <Button size="sm" variant="ghost" onClick={() => moveBinding(b.id, null)} title={t('orch.removeOrch')}><Trash2 size={13} className="text-red-500" /></Button>
+          </span>
+        ))}
       </div>
     );
   }
@@ -255,63 +247,35 @@ export default function OrchestrationEditor({
           </div>
 
           <div className={mode === 'orchestration' ? '' : 'opacity-40 pointer-events-none'}>
-            {/* 分组列表 */}
-            <div className="space-y-3">
-              {groups.map((g, i) => (
-                <div
-                  key={i}
-                  onDragOver={(e) => { e.preventDefault(); setDropTarget(`group-${i}`); }}
-                  onDragLeave={() => setDropTarget((p) => (p === `group-${i}` ? null : p))}
-                  onDrop={(e) => { e.preventDefault(); onDropGroup(i); }}
-                  className={`rounded-xl border p-3 transition-colors ${
-                    dropTarget === `group-${i}` ? 'border-brand-400 bg-brand-50/50' : 'border-stone-200 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      draggable
-                      onDragStart={() => setDrag({ type: 'group', index: i })}
-                      onDragEnd={() => { setDrag(null); setDropTarget(null); }}
-                      className="cursor-grab active:cursor-grabbing text-stone-300 hover:text-stone-500"
-                      title={t('orch.dragGroupHint')}
-                    >
-                      <GripVertical size={15} />
-                    </span>
-                    <Badge tone="indigo">{t('orch.groupLabel', { n: String(i + 1) })}</Badge>
-                    <Input
-                      value={g.name}
-                      onChange={(e) => setGroups((prev) => prev.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))}
-                      className="flex-1 !py-1"
-                    />
-                    <Button size="sm" variant="ghost" onClick={() => moveGroup(i, i - 1)} disabled={i === 0} title={t('orch.moveUp')}><ArrowUp size={13} /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => moveGroup(i, i + 1)} disabled={i === groups.length - 1} title={t('orch.moveDown')}><ArrowDown size={13} /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => removeGroup(i)} title={t('orch.removeGroup')}><Trash2 size={13} className="text-red-500" /></Button>
-                  </div>
-                  <p className="text-[11px] text-stone-400 mb-2">{t('orch.groupHint')}</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {g.bindingIds.map((id) => bindingById.get(id)).filter(Boolean).map((b) => bindingChip(b!))}
-                    {g.bindingIds.length === 0 && <p className="text-xs text-stone-300 py-2 text-center">{t('orch.groupEmpty')}</p>}
-                  </div>
-                </div>
-              ))}
+            {/* 加入编排（有序） */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDropIndex(orderedIds.length); }}
+              onDrop={(e) => { e.preventDefault(); if (drag) moveBinding(drag.bindingId, orderedIds.length); setDrag(null); setDropIndex(null); }}
+              className="space-y-0.5"
+            >
+              <span className="block text-xs font-medium text-stone-500 mb-1">{t('orch.ordered')}</span>
+              <p className="text-[11px] text-stone-400 mb-2">{t('orch.orderedHint')}</p>
+              {orderedIds.map((id, i) => bindingById.get(id)).filter(Boolean).map((b, i) => orderedSlot(b!, i))}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDropIndex(orderedIds.length); }}
+                onDrop={(e) => { e.preventDefault(); if (drag) moveBinding(drag.bindingId, orderedIds.length); setDrag(null); setDropIndex(null); }}
+                className={`rounded transition-all ${dropIndex === orderedIds.length ? 'border-2 border-dashed border-brand-400 bg-brand-50/50' : 'border-2 border-dashed border-transparent'} ${orderedIds.length === 0 ? 'border-stone-300 p-4' : 'p-1'}`}
+              >
+                {orderedIds.length === 0 && <p className="text-xs text-stone-300 text-center">{t('orch.orderedEmpty')}</p>}
+              </div>
             </div>
 
-            <Button size="sm" variant="default" onClick={addGroup} className="mt-2"><Plus size={13} /> {t('orch.addGroup')}</Button>
-
-            {/* 未分组 */}
+            {/* 未加入编排 */}
             <div
-              onDragOver={(e) => { e.preventDefault(); setDropTarget('ungrouped'); }}
-              onDragLeave={() => setDropTarget((p) => (p === 'ungrouped' ? null : p))}
-              onDrop={(e) => { e.preventDefault(); onDropUngrouped(); }}
-              className={`mt-3 rounded-xl border border-dashed p-3 transition-colors ${
-                dropTarget === 'ungrouped' ? 'border-brand-400 bg-brand-50/50' : 'border-stone-300 bg-stone-50/40'
-              }`}
+              onDragOver={(e) => { e.preventDefault(); setDropIndex(null); }}
+              onDrop={(e) => { e.preventDefault(); if (drag) moveBinding(drag.bindingId, null); setDrag(null); setDropIndex(null); }}
+              className="mt-3 rounded-xl border border-dashed border-stone-300 bg-stone-50/40 p-3"
             >
-              <span className="block text-xs font-medium text-stone-400">{t('orch.ungrouped')}</span>
-              <p className="text-[11px] text-stone-400 mb-2">{t('orch.ungroupedHint')}</p>
+              <span className="block text-xs font-medium text-stone-400">{t('orch.excluded')}</span>
+              <p className="text-[11px] text-stone-400 mb-2">{t('orch.excludedHint')}</p>
               <div className="grid grid-cols-1 gap-2">
-                {ungrouped.map((b) => bindingChip(b))}
-                {ungrouped.length === 0 && <p className="text-xs text-stone-300 py-2 text-center">{t('orch.ungroupedEmpty')}</p>}
+                {excluded.map((b) => bindingChip(b))}
+                {excluded.length === 0 && <p className="text-xs text-stone-300 py-2 text-center">{t('orch.excludedEmpty')}</p>}
               </div>
             </div>
           </div>

@@ -55,7 +55,8 @@ export interface ModelEntryBinding {
   inputPrice: number | null;
   cachedInputPrice: number | null;
   outputPrice: number | null;
-  groupId: number | null;
+  orchestrated: boolean;
+  orchPosition: number;
   retryAfterSeconds: number;
 }
 
@@ -84,19 +85,14 @@ export interface OrchestrationBinding extends ModelEntryBinding {
   };
 }
 
-export interface OrchestrationGroupView {
-  id: number;
-  name: string;
-  position: number;
-  bindings: OrchestrationBinding[];
-}
-
 export interface OrchestrationView {
   channelId: number;
   protocol: string;
   routingMode: string;
-  groups: OrchestrationGroupView[];
-  ungrouped: OrchestrationBinding[];
+  /** 加入编排的绑定（按优先级升序） */
+  orchestrated: OrchestrationBinding[];
+  /** 未加入编排的绑定（编排模式下不参与路由） */
+  excluded: OrchestrationBinding[];
 }
 
 export interface Token {
@@ -211,7 +207,7 @@ export const api = {
   },
   orchestration: {
     get: (channelId: number) => req<OrchestrationView>(`/api/channels/${channelId}/orchestration`),
-    save: (channelId: number, b: { routingMode: string; groups: Array<{ name: string; bindingIds: number[] }>; bindingRetry: Record<number, number> }) =>
+    save: (channelId: number, b: { routingMode: string; order: number[]; bindingRetry: Record<number, number> }) =>
       req<OrchestrationView>(`/api/channels/${channelId}/orchestration`, { method: 'PUT', body: JSON.stringify(b) }),
     reset: (channelId: number, bindingId?: number) =>
       req<{ ok: boolean }>(`/api/channels/${channelId}/orchestration/reset`, { method: 'POST', body: JSON.stringify(bindingId != null ? { bindingId } : {}) }),

@@ -183,8 +183,6 @@ export interface BindingRuntimeState {
 
 // 绑定运行时状态（内存，不落库；进程重启即清零）
 const bindingRuntime = new Map<number, BindingRuntimeState>();
-// 组内轮询游标（key = groupId，未分组用负数 bindingId 兜底）
-const groupCursors = new Map<number, number>();
 
 /** 读取某绑定的运行时健康状态（admin 编排面板用；未记录视为全零） */
 export function getBindingRuntime(bindingId: number): BindingRuntimeState {
@@ -226,12 +224,9 @@ function recordBindingSuccess(bindingId: number) {
   bindingRuntime.delete(bindingId);
 }
 
-/** 编排模式的候选绑定（已按 组顺序 × 组内轮询 展开并过滤不可用） */
+/** 编排模式的候选绑定（按固定优先级顺序排列并过滤不可用） */
 interface BindingCandidate {
   bindingId: number;
-  groupId: number | null;
-  /** 组序号（0-based，含未分组虚拟组；越小越优先） */
-  groupIndex: number;
   retryAfterSeconds: number;
   /** 是否为不可用绑定的恢复探测 */
   probe: boolean;
@@ -241,29 +236,20 @@ interface BindingCandidate {
 
 /**
  * 构建编排候选序列：
- * 1. 绑定按组归桶，组按 position 升序（未分组绑定兜底成队尾虚拟组）；
- * 2. 组内按轮询游标旋转（每次请求游标 +1）；
- * 3. 过滤不可用绑定，应用恢复探测规则：冷却到期 且 当前流量已降级到该组或更靠后的组；
- * 4. 全部不可用且冷却未到时，忽略冷却强制纳入一轮（best-effort，避免服务完全瘫痪），
- *    起点轮转且探测失败不延长冷却，避免持续流量把高优先组反复冲击、冷却永不过期。
+ * 1. 取加入编排的绑定，按 orch_position 升序（固定顺序，不轮询 -- 避免破坏上游 KV cache）；
+ * 2. 过滤不可用绑定，应用恢复探测规则：冷却到期 且 当前流量已降级到该绑定或更靠后的位置；
+ * 3. 全部不可用且冷却未到时，忽略冷却按原顺序强制纳入一轮（best-effort，避免服务完全瘫痪）；
+ *    探测失败不延长冷却，冷却最终总能到期。
+ * 未配置任何编排绑定时回退为全部绑定（按 id 升序），保证编排模式不空转。
  */
 async function buildOrchestrationCandidates(channel: ResolvedChannel): Promise<BindingCandidate[]> {
   const bindings = await db.select().from(schema.channelSources)
     .where(eq(schema.channelSources.channelId, channel.id));
   if (!bindings.length) return [];
-  const groups = await db.select().from(schema.orchestrationGroups)
-    .where(eq(schema.orchestrationGroups.channelId, channel.id));
-  groups.sort((a, b) => a.position - b.position);
 
-  // 归桶：named 组在前（按 position），未分组绑定合成一个虚拟组垫底
-  const buckets: Array<{ groupId: number | null; bindings: typeof bindings }> = groups.map((g) => ({
-    groupId: g.id,
-    bindings: bindings.filter((b) => b.groupId === g.id),
-  }));
-  const ungrouped = bindings.filter((b) => b.groupId == null || !groups.some((g) => g.id === b.groupId));
-  if (ungrouped.length) buckets.push({ groupId: null, bindings: ungrouped });
-  const effective = buckets.filter((bk) => bk.bindings.length);
-  if (!effective.length) return [];
+  const ordered = bindings.filter((b) => b.orchestrated)
+    .sort((a, b) => a.orchPosition - b.orchPosition || a.id - b.id);
+  const effective = ordered.length ? ordered : [...bindings].sort((a, b) => a.id - b.id);
 
   const now = Date.now();
   // 运行时可用性：cooling = 冷却中（一律跳过）；expired = 曾不可用但冷却已到期（按探测规则放行）
@@ -277,60 +263,43 @@ async function buildOrchestrationCandidates(channel: ResolvedChannel): Promise<B
     return !!rt && rt.consecutiveFailures >= ORCHESTRATION_FAILURE_THRESHOLD;
   };
 
-  // firstEligibleIndex：第一个仍含可用（非冷却）绑定的组序号 = 当前流量实际降级到的位置
+  // firstEligibleIndex：第一个仍可用（非冷却）绑定的序号 = 当前流量实际降级到的位置
   let firstEligibleIndex = -1;
   for (let i = 0; i < effective.length; i++) {
-    if (effective[i].bindings.some((b) => !isCooling(b))) { firstEligibleIndex = i; break; }
+    if (!isCooling(effective[i])) { firstEligibleIndex = i; break; }
   }
 
   const candidates: BindingCandidate[] = [];
   for (let i = 0; i < effective.length; i++) {
-    const bk = effective[i];
-    const n = bk.bindings.length;
-    const cursorKey = bk.groupId ?? -channel.id; // 未分组虚拟组用负 channel id 作游标键
-    const cursor = groupCursors.get(cursorKey) ?? 0;
-    groupCursors.set(cursorKey, cursor + 1);
-    const rotate = cursor % n;
-    const rotated = [...bk.bindings.slice(rotate), ...bk.bindings.slice(0, rotate)];
-    for (const b of rotated) {
-      if (isCooling(b)) continue; // 冷却中：跳过（全部不可用的兜底在下方处理）
-      if (wasUnavailable(b)) {
-        // 冷却到期的恢复探测：流量已降级到该组或更靠后才纳入（firstEligibleIndex >= i）
-        if (firstEligibleIndex !== -1 && firstEligibleIndex < i) continue;
-        candidates.push({
-          bindingId: b.id, groupId: b.groupId, groupIndex: i,
-          retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: true,
-          sourceModel: null, source: null,
-        });
-      } else {
-        candidates.push({
-          bindingId: b.id, groupId: b.groupId, groupIndex: i,
-          retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: false,
-          sourceModel: null, source: null,
-        });
-      }
+    const b = effective[i];
+    if (isCooling(b)) continue; // 冷却中：跳过（全部不可用的兜底在下方处理）
+    if (wasUnavailable(b)) {
+      // 冷却到期的恢复探测：流量已降级到该位置或更靠后才纳入（firstEligibleIndex >= i）
+      if (firstEligibleIndex !== -1 && firstEligibleIndex < i) continue;
+      candidates.push({
+        bindingId: b.id,
+        retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: true,
+        sourceModel: null, source: null,
+      });
+    } else {
+      candidates.push({
+        bindingId: b.id,
+        retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: false,
+        sourceModel: null, source: null,
+      });
     }
   }
 
-  // 兜底：所有绑定均不可用且冷却未到 → 忽略冷却强制试一轮。
-  // 起点按 channel 级游标轮转：避免每次都从最优先的组开始（那样限流的高优先组会被反复冲击，
-  // 且每次失败都把全组标记为失败）；探测失败也不会延长冷却（见 recordBindingFailure）。
+  // 兜底：所有绑定均不可用且冷却未到 -> 忽略冷却按原顺序强制试一轮。
+  // 探测失败不延长冷却（见 recordBindingFailure），冷却最终总能到期。
   if (!candidates.length) {
-    const flat: BindingCandidate[] = [];
-    for (let i = 0; i < effective.length; i++) {
-      for (const b of effective[i].bindings) {
-        flat.push({
-          bindingId: b.id, groupId: b.groupId, groupIndex: i,
-          retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: true,
-          sourceModel: null, source: null,
-        });
-      }
+    for (const b of effective) {
+      candidates.push({
+        bindingId: b.id,
+        retryAfterSeconds: b.retryAfterSeconds ?? 300, probe: true,
+        sourceModel: null, source: null,
+      });
     }
-    const forcedKey = -(channel.id + 1_000_000_000); // 与组游标键空间隔离
-    const forcedCursor = groupCursors.get(forcedKey) ?? 0;
-    groupCursors.set(forcedKey, forcedCursor + 1);
-    const rotate = flat.length ? forcedCursor % flat.length : 0;
-    candidates.push(...flat.slice(rotate), ...flat.slice(0, rotate));
   }
 
   // 富化 sourceModel / source（缺失保留 null，尝试时按失败处理并计数）
@@ -367,6 +336,14 @@ function buildUpstreamHeaders(protocol: Protocol, apiKey: string, incoming: Head
   const h = new Headers();
   const meta = PROTOCOLS[protocol];
   h.set('content-type', incoming.get('content-type') || 'application/json');
+  // 协议相关头原样透传：
+  // - anthropic-beta：Skills（container 字段）/ code execution 等 beta 能力的开关，丢弃会导致上游 400
+  // - openai-beta：OpenAI 侧同类 beta 开关
+  // - accept：流式请求通常携带 text/event-stream
+  for (const k of ['accept', 'anthropic-beta', 'openai-beta']) {
+    const v = incoming.get(k);
+    if (v) h.set(k, v);
+  }
   if (meta.upstreamAuthHeader === 'authorization') {
     h.set('authorization', `Bearer ${apiKey}`);
   } else if (protocol === 'anthropic') {
@@ -445,7 +422,7 @@ async function handleProxy(c: any, protocol: Protocol) {
     return c.json({ error: `no entry for model "${exposedModel}" (${protocol})` }, 404);
   }
 
-  // 路由模式：manual = 现有单绑定逻辑；orchestration = 分组轮询 + 故障转移
+  // 路由模式：manual = 现有单绑定逻辑；orchestration = 按固定优先级顺序 + 故障转移
   const isOrch = channel.routingMode === 'orchestration';
   let candidates: BindingCandidate[];
   if (isOrch) {
@@ -459,7 +436,7 @@ async function handleProxy(c: any, protocol: Protocol) {
       return c.json({ error: 'entry has no usable upstream binding' }, 404);
     }
     candidates = [{
-      bindingId: resolved.binding.id, groupId: null, groupIndex: 0,
+      bindingId: resolved.binding.id,
       retryAfterSeconds: 0, probe: false,
       sourceModel: resolved.sourceModel, source: resolved.source,
     }];
@@ -506,9 +483,11 @@ async function handleProxy(c: any, protocol: Protocol) {
       outputPrice: sourceModel.outputPrice ?? null,
     };
 
-    // 改写 model：对外模型名 → 上游真实模型名（每个候选各自改写，互不影响）
+    // 完整 JSON 透传：不做预设字段筛选。仅在需要改写 model 时才重新序列化
+    // （展开保留全部字段，含 container 等扩展字段）；上游模型名与对外名一致时
+    // 直接转发原始请求体字节（连格式都零改动）。
     const upstreamModel = sourceModel.model;
-    const outReqBody = JSON.stringify({ ...reqObj, model: upstreamModel });
+    const outReqBody = upstreamModel === exposedModel ? reqBody : JSON.stringify({ ...reqObj, model: upstreamModel });
 
     const upstreamUrl = buildUpstreamUrl(endpoint.baseUrl, protocol);
     const upstreamHeaders = buildUpstreamHeaders(protocol, source.apiKey, c.req.raw.headers);

@@ -77,25 +77,15 @@ export const channelSources = sqliteTable('t_proxy_channel_sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   channelId: integer('channel_id').notNull(),
   sourceModelId: integer('source_model_id').notNull(),
-  // 编排分组（t_proxy_orchestration_groups.id）；为空 = 未分组（编排保存时会自动兜底成独立组）
-  groupId: integer('group_id'),
+  // 是否加入编排（1 = 参与 orchestration 路由；0 = 仅手动模式可用，编排时跳过）
+  orchestrated: integer('orchestrated').default(0).notNull(),
+  // 编排顺序（越小越优先；固定顺序不轮询，避免破坏上游 KV cache）
+  orchPosition: integer('orch_position').default(0).notNull(),
   // 不可用重试时长（秒）：连续失败被标记不可用后，冷却该时长后允许按组顺序重新探测
   retryAfterSeconds: integer('retry_after_seconds').default(300).notNull(),
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
 }, (t) => [
   uniqueIndex('ux_channel_source_model').on(t.channelId, t.sourceModelId),
-]);
-
-// 模型编排分组（channel 内的绑定分组：组内轮询、组间按 position 顺序故障转移）
-export const orchestrationGroups = sqliteTable('t_proxy_orchestration_groups', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  channelId: integer('channel_id').notNull(),
-  name: text('name').notNull(),
-  // 组排序，越小越优先
-  position: integer('position').default(0).notNull(),
-  createdAt: text('created_at').default(sql`(datetime('now','localtime'))`).notNull(),
-}, (t) => [
-  uniqueIndex('ux_orch_group_name').on(t.channelId, t.name),
 ]);
 
 // 调用日志
@@ -191,8 +181,6 @@ export type Channel = typeof channels.$inferSelect;
 export type NewChannel = typeof channels.$inferInsert;
 export type ChannelSource = typeof channelSources.$inferSelect;
 export type NewChannelSource = typeof channelSources.$inferInsert;
-export type OrchestrationGroup = typeof orchestrationGroups.$inferSelect;
-export type NewOrchestrationGroup = typeof orchestrationGroups.$inferInsert;
 export type CallLog = typeof callLogs.$inferSelect;
 export type DailyStat = typeof dailyStats.$inferSelect;
 export type NewDailyStat = typeof dailyStats.$inferInsert;

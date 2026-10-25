@@ -15,7 +15,7 @@
 - 每家 API 格式和鉴权方式不同，客户端要分别适配
 - 切换服务商需要改代码
 - 无法直观看到 token 消耗和费用
-- 出问题时无从排查请求内容
+- 想深入看一下各家Agent的Prompt内容，或者出问题时无从排查请求内容
 
 LocalRouter 用一个本地网关解决所有问题。你的应用只需对接 LocalRouter，后续的服务商管理、模型切换、路由调整全部在可视化面板中完成——**无需改代码**。
 
@@ -166,6 +166,7 @@ const response = await client.chat.completions.create({
 ### 调用日志与调试
 
 ![调用日志](examples/calllogs.jpg)
+![调用日志](examples/calllogs-detail.jpg)
 
 每次代理请求都会自动记录：
 

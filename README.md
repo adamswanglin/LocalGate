@@ -166,6 +166,7 @@ Streaming (`"stream": true`) is fully supported for all protocols.
 ### Call Logs & Debugging
 
 ![Call Logs](examples/calllogs.jpg)
+![Call Log](examples/calllogs-detail.jpg)
 
 Every proxied request is logged with:
 

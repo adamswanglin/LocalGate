@@ -1,0 +1,19 @@
+services:
+  agent-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agent-proxy:latest
+    container_name: agent-proxy
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      NODE_ENV: production
+      # 如需自定义端口，改这里和上面的 ports 映射
+      # PORT: 8787
+    volumes:
+      - agent-proxy-data:/app/data/localrouter
+
+volumes:
+  agent-proxy-data:
